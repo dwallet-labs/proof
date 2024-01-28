@@ -19,7 +19,7 @@ pub trait RangeProof<
     /// transcript.
     const NAME: &'static str;
 
-    /// The maximum number of bits this proof can prove for every witness.
+    /// The number of bits this proof proves for every witness.
     const RANGE_CLAIM_BITS: usize;
 
     /// An element of the group from which the range proof's commitment scheme message space is composed,
