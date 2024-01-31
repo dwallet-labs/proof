@@ -7,6 +7,7 @@
 //! a compile error to perform the steps out of order or to repeat a
 //! step.
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crypto_bigint::rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// The commitment round party of a proof aggregation protocol.
 pub trait CommitmentRoundParty<Output>: Sized {
+    /// Commitment error.
+    type Error: Debug;
+
     /// The output of the commitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
 
@@ -51,11 +55,14 @@ pub trait CommitmentRoundParty<Output>: Sized {
     fn commit_statements_and_statement_mask(
         self,
         rng: &mut impl CryptoRngCore,
-    ) -> crate::Result<(Self::Commitment, Self::DecommitmentRoundParty)>;
+    ) -> std::result::Result<(Self::Commitment, Self::DecommitmentRoundParty), Self::Error>;
 }
 
 /// The decommitment round party of a proof aggregation protocol.
 pub trait DecommitmentRoundParty<Output>: Sized {
+    /// Decommitment error.
+    type Error: Debug;
+
     /// The output of the round preceding the decommitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
     /// The output of the decommitment round.
@@ -70,11 +77,14 @@ pub trait DecommitmentRoundParty<Output>: Sized {
         self,
         commitments: HashMap<PartyID, Self::Commitment>,
         rng: &mut impl CryptoRngCore,
-    ) -> crate::Result<(Self::Decommitment, Self::ProofShareRoundParty)>;
+    ) -> std::result::Result<(Self::Decommitment, Self::ProofShareRoundParty), Self::Error>;
 }
 
 /// The proof share round party of a proof aggregation protocol.
 pub trait ProofShareRoundParty<Output>: Sized {
+    /// Proof share error.
+    type Error: Debug;
+
     /// The output of the round preceding the proof share round.
     type Decommitment: Serialize + for<'a> Deserialize<'a> + Clone;
     /// The output of the proof share round.
@@ -92,11 +102,14 @@ pub trait ProofShareRoundParty<Output>: Sized {
         self,
         decommitments: HashMap<PartyID, Self::Decommitment>,
         rng: &mut impl CryptoRngCore,
-    ) -> crate::Result<(Self::ProofShare, Self::ProofAggregationRoundParty)>;
+    ) -> std::result::Result<(Self::ProofShare, Self::ProofAggregationRoundParty), Self::Error>;
 }
 
 /// The proof aggregation round party of a proof aggregation protocol.
 pub trait ProofAggregationRoundParty<Output>: Sized {
+    /// Aggregation error.
+    type Error: Debug;
+
     /// The output of the round preceding the proof aggregation round.
     type ProofShare: Serialize + for<'a> Deserialize<'a> + Clone;
 
@@ -106,7 +119,7 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
         self,
         proof_shares: HashMap<PartyID, Self::ProofShare>,
         rng: &mut impl CryptoRngCore,
-    ) -> crate::Result<Output>;
+    ) -> std::result::Result<Output, Self::Error>;
 }
 
 #[cfg(any(test, feature = "benchmarking"))]
