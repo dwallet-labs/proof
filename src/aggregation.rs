@@ -124,23 +124,22 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
     ) -> std::result::Result<Output, Self::Error>;
 }
 
-#[cfg(any(test, feature = "benchmarking"))]
-pub(crate) mod tests {
+pub mod test_helpers {
     use std::collections::HashMap;
-
-    use rand_core::OsRng;
 
     use super::*;
 
     #[allow(dead_code)]
     pub(crate) fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
+        rng: &mut impl CryptoRngCore,
     ) -> Output {
         aggregates_internal_multiple(
             commitment_round_parties
                 .into_iter()
                 .map(|(party_id, party)| (party_id, vec![party]))
                 .collect(),
+            rng,
         )
         .into_iter()
         .next()
@@ -150,6 +149,7 @@ pub(crate) mod tests {
     #[allow(dead_code)]
     pub(crate) fn aggregates_internal_multiple<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, Vec<P>>,
+        rng: &mut impl CryptoRngCore,
     ) -> Vec<Output> {
         let batch_size = commitment_round_parties
             .iter()
@@ -167,11 +167,7 @@ pub(crate) mod tests {
                         party_id,
                         parties
                             .into_iter()
-                            .map(|party| {
-                                party
-                                    .commit_statements_and_statement_mask(&mut OsRng)
-                                    .unwrap()
-                            })
+                            .map(|party| party.commit_statements_and_statement_mask(rng).unwrap())
                             .collect(),
                     )
                 })
@@ -208,7 +204,7 @@ pub(crate) mod tests {
                                 party
                                     .decommit_statements_and_statement_mask(
                                         commitments[i].clone(),
-                                        &mut OsRng,
+                                        rng,
                                     )
                                     .unwrap()
                             })
@@ -248,7 +244,7 @@ pub(crate) mod tests {
                             .enumerate()
                             .map(|(i, (_, party))| {
                                 party
-                                    .generate_proof_share(decommitments[i].clone(), &mut OsRng)
+                                    .generate_proof_share(decommitments[i].clone(), rng)
                                     .unwrap()
                             })
                             .collect(),
@@ -290,7 +286,7 @@ pub(crate) mod tests {
             .enumerate()
             .map(|(i, proof_aggregation_round_party)| {
                 proof_aggregation_round_party
-                    .aggregate_proof_shares(proof_shares[i].clone(), &mut OsRng)
+                    .aggregate_proof_shares(proof_shares[i].clone(), rng)
                     .unwrap()
             })
             .collect()
