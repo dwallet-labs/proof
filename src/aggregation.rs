@@ -17,8 +17,10 @@ use group::PartyID;
 /// Proof aggregation error.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("threshold not reached: received insufficient messages")]
-    ThresholdNotReached,
+    #[error(
+        "this party was not selected as part of the participating parties in the current session"
+    )]
+    NonParticipatingParty,
 
     #[error("parties {:?} participated in the previous round of the session but not in the current", .0)]
     UnresponsiveParties(Vec<PartyID>),
