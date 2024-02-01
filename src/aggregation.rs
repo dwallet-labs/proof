@@ -129,8 +129,7 @@ pub mod test_helpers {
 
     use super::*;
 
-    #[allow(dead_code)]
-    pub(crate) fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
+    pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
         rng: &mut impl CryptoRngCore,
     ) -> Output {
@@ -146,8 +145,7 @@ pub mod test_helpers {
         .unwrap()
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn aggregates_internal_multiple<Output, P: CommitmentRoundParty<Output>>(
+    pub fn aggregates_internal_multiple<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, Vec<P>>,
         rng: &mut impl CryptoRngCore,
     ) -> Vec<Output> {
