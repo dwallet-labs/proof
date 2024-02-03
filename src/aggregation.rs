@@ -374,7 +374,7 @@ pub mod test_helpers {
                 .into_iter()
                 .map(|(party_id, v)| {
                     if party_id == pid {
-                        g.bench_function(format!("commitment round"), |bench| {
+                        g.bench_function(format!("decommitment round"), |bench| {
                             bench.iter(|| {
                                 v.clone()
                                     .into_iter()
@@ -433,7 +433,7 @@ pub mod test_helpers {
                 .into_iter()
                 .map(|(party_id, v)| {
                     if party_id == pid {
-                        g.bench_function(format!("commitment round"), |bench| {
+                        g.bench_function(format!("proof share round"), |bench| {
                             bench.iter(|| {
                                 v.clone()
                                     .into_iter()
