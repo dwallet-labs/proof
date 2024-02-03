@@ -126,16 +126,14 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
 
 #[cfg(feature = "test_helpers")]
 pub mod test_helpers {
-    use criterion::{measurement::Measurement, measurement::WallTime, BenchmarkGroup};
-    use std::collections::HashMap;
-    use std::process::Output;
-    use std::time::Duration;
-
     use super::*;
+    use criterion::{measurement::Measurement, measurement::WallTime};
+    use rand_core::OsRng;
+    use std::collections::HashMap;
+    use std::time::Duration;
 
     pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
-        rng: &mut impl CryptoRngCore,
     ) -> (Duration, Duration, Duration, Duration, Duration, Output) {
         let (
             commitment_round_time,
@@ -149,7 +147,6 @@ pub mod test_helpers {
                 .into_iter()
                 .map(|(party_id, party)| (party_id, vec![party]))
                 .collect(),
-            rng,
         );
 
         (
@@ -164,7 +161,6 @@ pub mod test_helpers {
 
     pub fn aggregates_internal_multiple<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, Vec<P>>,
-        rng: &mut impl CryptoRngCore,
     ) -> (
         Duration,
         Duration,
@@ -193,7 +189,11 @@ pub mod test_helpers {
                     let now = measurement.start();
                     let res = parties
                         .into_iter()
-                        .map(|party| party.commit_statements_and_statement_mask(rng).unwrap())
+                        .map(|party| {
+                            party
+                                .commit_statements_and_statement_mask(&mut OsRng)
+                                .unwrap()
+                        })
                         .collect();
                     commitment_round_time = measurement.end(now);
 
@@ -230,7 +230,10 @@ pub mod test_helpers {
                         .enumerate()
                         .map(|(i, (_, party))| {
                             party
-                                .decommit_statements_and_statement_mask(commitments[i].clone(), rng)
+                                .decommit_statements_and_statement_mask(
+                                    commitments[i].clone(),
+                                    &mut OsRng,
+                                )
                                 .unwrap()
                         })
                         .collect();
@@ -271,7 +274,7 @@ pub mod test_helpers {
                         .enumerate()
                         .map(|(i, (_, party))| {
                             party
-                                .generate_proof_share(decommitments[i].clone(), rng)
+                                .generate_proof_share(decommitments[i].clone(), &mut OsRng)
                                 .unwrap()
                         })
                         .collect();
@@ -316,7 +319,7 @@ pub mod test_helpers {
             .enumerate()
             .map(|(i, proof_aggregation_round_party)| {
                 proof_aggregation_round_party
-                    .aggregate_proof_shares(proof_shares[i].clone(), rng)
+                    .aggregate_proof_shares(proof_shares[i].clone(), &mut OsRng)
                     .unwrap()
             })
             .collect();
