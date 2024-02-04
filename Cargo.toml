@@ -10,7 +10,7 @@ merlin = { version = "3", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 group = { git = "https://github.com/dwallet-labs/group.git" }
-commitment = { git = "https://github.com/dwallet-labs/commitment.git", branch = "homomoprhic_commitment" }
+commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
 thiserror = "1.0"
 
 [dev-dependencies]

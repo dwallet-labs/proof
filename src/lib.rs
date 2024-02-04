@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 pub mod aggregation;
 pub mod range;
-mod transcript_protocol;
-
-pub use transcript_protocol::TranscriptProtocol;
 
 /// Proof error.
 #[derive(thiserror::Error, Debug)]
