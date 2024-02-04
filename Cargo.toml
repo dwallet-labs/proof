@@ -1,0 +1,19 @@
+[package]
+name = "proof"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause-Clear"
+
+[dependencies]
+crypto-bigint = { version = "0.5", features = ["rand_core", "serde"], default-features = false }
+merlin = { version = "3", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+group = { git = "https://github.com/dwallet-labs/group.git" }
+thiserror = "1.0"
+
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["std"] }
+
+[features]
