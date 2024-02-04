@@ -274,11 +274,14 @@ pub mod test_helpers {
             .collect();
 
         assert!(
-            proof_aggregation_parties.into_iter().all(|(_, proof_aggregation_round_party)|
+            proof_aggregation_parties.into_iter().all(|(party_id, proof_aggregation_round_party)| {
+                let unresponsive_parties_for_party: Vec<_> = unresponsive_parties.clone().into_iter().filter(|&pid| pid != party_id).collect();
+
                 matches!(
                     proof_aggregation_round_party.aggregate_proof_shares(filtered_proof_shares.clone(), &mut OsRng).err().unwrap().try_into().unwrap(),
-                    Error::UnresponsiveParties(parties) if parties == unresponsive_parties
+                    Error::UnresponsiveParties(parties) if parties == unresponsive_parties_for_party
                 )
+            }
             )
         );
     }
