@@ -216,6 +216,73 @@ pub mod test_helpers {
             .unzip())
     }
 
+    pub fn wrong_decommitment_aborts_session_identifiably<
+        Output,
+        P: CommitmentRoundParty<Output> + Clone,
+    >(
+        commitment_round_parties: HashMap<PartyID, P>,
+    ) {
+        let (commitments, decommitment_round_parties) =
+            commitment_round(commitment_round_parties.clone()).unwrap();
+
+        let (decommitments, proof_share_round_parties) =
+            decommitment_round(commitments.clone(), decommitment_round_parties).unwrap();
+
+        let (wrong_commitments, wrong_decommitment_round_parties) =
+            commitment_round(commitment_round_parties).unwrap();
+
+        let (wrong_decommitments, _) =
+            decommitment_round(wrong_commitments, wrong_decommitment_round_parties).unwrap();
+
+        let provers: Vec<_> = commitments.clone().into_keys().collect();
+        let number_of_miscommitting_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let miscommitting_parties = provers
+            .clone()
+            .into_iter()
+            .choose_multiple(&mut OsRng, number_of_miscommitting_parties);
+
+        let decommitments: HashMap<_, _> = decommitments
+            .clone()
+            .into_iter()
+            .map(|(party_id, decommitment)| {
+                (
+                    party_id,
+                    if miscommitting_parties.contains(&party_id) {
+                        if *miscommitting_parties.first().unwrap() == party_id {
+                            // try decommitting to a wrong value and see if we get caught
+                            wrong_decommitments.get(&party_id).cloned().unwrap()
+                        } else {
+                            // try a replay attack and see if we get caught
+                            decommitments
+                                .get(miscommitting_parties.first().unwrap())
+                                .unwrap()
+                                .clone()
+                        }
+                    } else {
+                        decommitment
+                    },
+                )
+            })
+            .collect();
+
+        assert!(
+            proof_share_round_parties.into_iter().all(|(party_id, party)| {
+                let mut miscommitting_parties_for_party: Vec<_> = miscommitting_parties.clone().into_iter().filter(|&pid| pid != party_id).collect();
+                miscommitting_parties_for_party.sort();
+
+                let res = party.generate_proof_share(decommitments.clone(), &mut OsRng);
+                if miscommitting_parties_for_party.is_empty() {
+                    res.is_ok()
+                } else {
+                    matches!(
+                        res.err().unwrap().try_into().unwrap(),
+                        Error::WrongDecommitment(parties) if parties == miscommitting_parties_for_party
+                    )
+                }
+            })
+        );
+    }
+
     pub fn unresponsive_parties_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output>,
