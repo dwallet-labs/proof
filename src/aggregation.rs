@@ -235,34 +235,52 @@ pub mod test_helpers {
             .into_iter()
             .choose_multiple(&mut OsRng, number_of_unresponsive_parties);
 
-        let filtered_commitments = commitments
+        let filtered_commitments: HashMap<_, _> = commitments
             .clone()
             .into_iter()
             .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
             .collect();
 
-        assert!(matches!(
-            decommitment_round(filtered_commitments, decommitment_round_parties.clone())
-                .err()
-                .unwrap(),
-            Error::UnresponsiveParties(parties) if parties == unresponsive_parties
-        ));
+        assert!(
+            decommitment_round_parties.clone().into_iter().all(|(party_id, party)| {
+                let unresponsive_parties_for_party: Vec<_> = unresponsive_parties.clone().into_iter().filter(|&pid| pid != party_id).collect();
+
+                let res = party.decommit_statements_and_statement_mask(filtered_commitments.clone(), &mut OsRng);
+                if unresponsive_parties_for_party.is_empty() {
+                    res.is_ok()
+                } else {
+                    matches!(
+                        res.err().unwrap().try_into().unwrap(),
+                        Error::UnresponsiveParties(parties) if parties == unresponsive_parties_for_party
+                    )
+                }
+            })
+        );
 
         let (decommitments, proof_share_round_parties) =
             decommitment_round(commitments, decommitment_round_parties).unwrap();
 
-        let filtered_decommitments = decommitments
+        let filtered_decommitments: HashMap<_, _> = decommitments
             .clone()
             .into_iter()
             .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
             .collect();
 
-        assert!(matches!(
-            proof_share_round(filtered_decommitments, proof_share_round_parties.clone())
-                .err()
-                .unwrap(),
-            Error::UnresponsiveParties(parties) if parties == unresponsive_parties
-        ));
+        assert!(
+            proof_share_round_parties.clone().into_iter().all(|(party_id, party)| {
+                let unresponsive_parties_for_party: Vec<_> = unresponsive_parties.clone().into_iter().filter(|&pid| pid != party_id).collect();
+
+                let res = party.generate_proof_share(filtered_decommitments.clone(), &mut OsRng);
+                if unresponsive_parties_for_party.is_empty() {
+                    res.is_ok()
+                } else {
+                    matches!(
+                        res.err().unwrap().try_into().unwrap(),
+                        Error::UnresponsiveParties(parties) if parties == unresponsive_parties_for_party
+                    )
+                }
+            })
+        );
 
         let (proof_shares, proof_aggregation_parties) =
             proof_share_round(decommitments, proof_share_round_parties).unwrap();
@@ -274,10 +292,10 @@ pub mod test_helpers {
             .collect();
 
         assert!(
-            proof_aggregation_parties.into_iter().all(|(party_id, proof_aggregation_round_party)| {
+            proof_aggregation_parties.into_iter().all(|(party_id, party)| {
                 let unresponsive_parties_for_party: Vec<_> = unresponsive_parties.clone().into_iter().filter(|&pid| pid != party_id).collect();
 
-                let res = proof_aggregation_round_party.aggregate_proof_shares(filtered_proof_shares.clone(), &mut OsRng);
+                let res = party.aggregate_proof_shares(filtered_proof_shares.clone(), &mut OsRng);
                 if unresponsive_parties_for_party.is_empty() {
                     res.is_ok()
                 } else {
@@ -286,8 +304,7 @@ pub mod test_helpers {
                         Error::UnresponsiveParties(parties) if parties == unresponsive_parties_for_party
                     )
                 }
-            }
-            )
+            })
         );
     }
 
