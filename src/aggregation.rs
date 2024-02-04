@@ -25,6 +25,9 @@ pub enum Error {
     #[error("parties {:?} participated in the previous round of the session but not in the current", .0)]
     UnresponsiveParties(Vec<PartyID>),
 
+    #[error("parties {:?} sent an invalid decommitment value", .0)]
+    InvalidDecommitment(Vec<PartyID>),
+
     #[error("parties {:?} maliciously attempted to bypass the commitment round by sending decommitment which does not match their commitment", .0)]
     WrongDecommitment(Vec<PartyID>),
 
@@ -44,7 +47,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The commitment round party of a proof aggregation protocol.
 pub trait CommitmentRoundParty<Output>: Sized {
     /// Commitment error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the commitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -63,7 +66,7 @@ pub trait CommitmentRoundParty<Output>: Sized {
 /// The decommitment round party of a proof aggregation protocol.
 pub trait DecommitmentRoundParty<Output>: Sized {
     /// Decommitment error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the decommitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -85,7 +88,7 @@ pub trait DecommitmentRoundParty<Output>: Sized {
 /// The proof share round party of a proof aggregation protocol.
 pub trait ProofShareRoundParty<Output>: Sized {
     /// Proof share error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the proof share round.
     type Decommitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -110,7 +113,7 @@ pub trait ProofShareRoundParty<Output>: Sized {
 /// The proof aggregation round party of a proof aggregation protocol.
 pub trait ProofAggregationRoundParty<Output>: Sized {
     /// Aggregation error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the proof aggregation round.
     type ProofShare: Serialize + for<'a> Deserialize<'a> + Clone;
