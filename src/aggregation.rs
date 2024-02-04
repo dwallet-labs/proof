@@ -222,6 +222,7 @@ pub mod test_helpers {
     >(
         commitment_round_parties: HashMap<PartyID, P>,
     ) {
+        let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
         let (commitments, decommitment_round_parties) =
             commitment_round(commitment_round_parties.clone()).unwrap();
 
@@ -234,8 +235,7 @@ pub mod test_helpers {
         let (wrong_decommitments, _) =
             decommitment_round(wrong_commitments, wrong_decommitment_round_parties).unwrap();
 
-        let provers: Vec<_> = commitments.clone().into_keys().collect();
-        let number_of_miscommitting_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let number_of_miscommitting_parties = if provers.len() == 2 { 1 } else { 2 };
         let miscommitting_parties = provers
             .clone()
             .into_iter()
@@ -288,26 +288,28 @@ pub mod test_helpers {
         P: CommitmentRoundParty<Output>,
     >(
         commitment_round_parties: HashMap<PartyID, P>,
-    ) where
-        P::DecommitmentRoundParty: Clone,
-    {
+        wrong_commitment_round_parties: HashMap<PartyID, P>,
+    ) {
+        let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
         let (commitments, decommitment_round_parties) =
             commitment_round(commitment_round_parties).unwrap();
 
         let (decommitments, proof_share_round_parties) =
-            decommitment_round(commitments.clone(), decommitment_round_parties.clone()).unwrap();
+            decommitment_round(commitments, decommitment_round_parties).unwrap();
 
         let (proof_shares, proof_aggregation_round_parties) =
             proof_share_round(decommitments, proof_share_round_parties).unwrap();
 
+        let (wrong_commitments, wrong_decommitment_round_parties) =
+            commitment_round(wrong_commitment_round_parties).unwrap();
+
         let (wrong_decommitments, wrong_proof_share_round_parties) =
-            decommitment_round(commitments.clone(), decommitment_round_parties).unwrap();
+            decommitment_round(wrong_commitments, wrong_decommitment_round_parties).unwrap();
 
         let (wrong_proof_shares, _) =
             proof_share_round(wrong_decommitments, wrong_proof_share_round_parties).unwrap();
 
-        let provers: Vec<_> = commitments.clone().into_keys().collect();
-        let number_of_misproving_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let number_of_misproving_parties = if provers.len() == 2 { 1 } else { 2 };
         let misproving_parties = provers
             .clone()
             .into_iter()
@@ -368,11 +370,11 @@ pub mod test_helpers {
         P::DecommitmentRoundParty: Clone,
         <P::DecommitmentRoundParty as DecommitmentRoundParty<Output>>::ProofShareRoundParty: Clone,
     {
+        let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
         let (commitments, decommitment_round_parties) =
             commitment_round(commitment_round_parties).unwrap();
 
-        let provers: Vec<_> = commitments.clone().into_keys().collect();
-        let number_of_unresponsive_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let number_of_unresponsive_parties = if provers.len() == 2 { 1 } else { 2 };
         let unresponsive_parties = provers
             .clone()
             .into_iter()
