@@ -44,7 +44,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The commitment round party of a proof aggregation protocol.
 pub trait CommitmentRoundParty<Output>: Sized {
     /// Commitment error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the commitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -63,7 +63,7 @@ pub trait CommitmentRoundParty<Output>: Sized {
 /// The decommitment round party of a proof aggregation protocol.
 pub trait DecommitmentRoundParty<Output>: Sized {
     /// Decommitment error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the decommitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -85,7 +85,7 @@ pub trait DecommitmentRoundParty<Output>: Sized {
 /// The proof share round party of a proof aggregation protocol.
 pub trait ProofShareRoundParty<Output>: Sized {
     /// Proof share error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the proof share round.
     type Decommitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -110,7 +110,7 @@ pub trait ProofShareRoundParty<Output>: Sized {
 /// The proof aggregation round party of a proof aggregation protocol.
 pub trait ProofAggregationRoundParty<Output>: Sized {
     /// Aggregation error.
-    type Error: Debug;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the round preceding the proof aggregation round.
     type ProofShare: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -131,6 +131,98 @@ pub mod test_helpers {
     use rand_core::OsRng;
     use std::collections::HashMap;
     use std::time::Duration;
+
+    fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
+        commitment_round_parties: HashMap<PartyID, P>,
+    ) -> Result<(
+        HashMap<PartyID, P::Commitment>,
+        HashMap<PartyID, P::DecommitmentRoundParty>,
+    )> {
+        let commitments_and_decommitment_round_parties: HashMap<_, (_, _)> =
+            commitment_round_parties
+                .into_iter()
+                .map(|(party_id, party)| {
+                    party
+                        .commit_statements_and_statement_mask(&mut OsRng)
+                        .map(|res| (party_id, res))
+                        .map_err(|e| e.try_into().unwrap())
+                })
+                .collect::<Result<_>>()?;
+
+        Ok(commitments_and_decommitment_round_parties
+            .into_iter()
+            .map(|(party_id, (commitment, decommitment_round_party))| {
+                ((party_id, commitment), (party_id, decommitment_round_party))
+            })
+            .unzip())
+    }
+
+    fn decommitment_round<Output, P: DecommitmentRoundParty<Output>>(
+        commitments: HashMap<PartyID, P::Commitment>,
+        decommitment_round_parties: HashMap<PartyID, P>,
+    ) -> Result<(
+        HashMap<PartyID, P::Decommitment>,
+        HashMap<PartyID, P::ProofShareRoundParty>,
+    )> {
+        let decommitments_and_proof_share_round_parties: HashMap<_, (_, _)> =
+            decommitment_round_parties
+                .into_iter()
+                .map(|(party_id, party)| {
+                    party
+                        .decommit_statements_and_statement_mask(commitments.clone(), &mut OsRng)
+                        .map(|res| (party_id, res))
+                        .map_err(|e| e.try_into().unwrap())
+                })
+                .collect::<Result<_>>()?;
+
+        Ok(decommitments_and_proof_share_round_parties
+            .into_iter()
+            .map(|(party_id, (decommitment, proof_share_round_party))| {
+                (
+                    (party_id, decommitment),
+                    (party_id, proof_share_round_party),
+                )
+            })
+            .unzip())
+    }
+
+    fn proof_share_round<Output, P: ProofShareRoundParty<Output>>(
+        decommitments: HashMap<PartyID, P::Decommitment>,
+        proof_share_round_parties: HashMap<PartyID, P>,
+    ) -> Result<(
+        HashMap<PartyID, P::ProofShare>,
+        HashMap<PartyID, P::ProofAggregationRoundParty>,
+    )> {
+        let proof_shares_and_proof_aggregation_round_parties: HashMap<_, (_, _)> =
+            proof_share_round_parties
+                .into_iter()
+                .map(|(party_id, party)| {
+                    party
+                        .generate_proof_share(decommitments.clone(), &mut OsRng)
+                        .map(|res| (party_id, res))
+                        .map_err(|e| e.try_into().unwrap())
+                })
+                .collect::<Result<_>>()?;
+
+        Ok(proof_shares_and_proof_aggregation_round_parties
+            .into_iter()
+            .map(|(party_id, (proof_share, proof_aggregation_round_party))| {
+                (
+                    (party_id, proof_share),
+                    (party_id, proof_aggregation_round_party),
+                )
+            })
+            .unzip())
+    }
+
+    pub fn unresponsive_parties_abort_session_identifiably<
+        Output,
+        P: CommitmentRoundParty<Output>,
+    >(
+        commitment_round_parties: HashMap<PartyID, P>,
+    ) {
+        let (commitments, decommitment_round_parties) = commitment_round(commitment_round_parties);
+    }
 
     pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
