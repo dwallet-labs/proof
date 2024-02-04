@@ -283,6 +283,82 @@ pub mod test_helpers {
         );
     }
 
+    pub fn failed_proof_share_verification_aborts_session_identifiably<
+        Output,
+        P: CommitmentRoundParty<Output>,
+    >(
+        commitment_round_parties: HashMap<PartyID, P>,
+    ) where
+        P::DecommitmentRoundParty: Clone,
+    {
+        let (commitments, decommitment_round_parties) =
+            commitment_round(commitment_round_parties).unwrap();
+
+        let (decommitments, proof_share_round_parties) =
+            decommitment_round(commitments.clone(), decommitment_round_parties.clone()).unwrap();
+
+        let (proof_shares, proof_aggregation_round_parties) =
+            proof_share_round(decommitments, proof_share_round_parties).unwrap();
+
+        let (wrong_decommitments, wrong_proof_share_round_parties) =
+            decommitment_round(commitments.clone(), decommitment_round_parties).unwrap();
+
+        let (wrong_proof_shares, _) =
+            proof_share_round(wrong_decommitments, wrong_proof_share_round_parties).unwrap();
+
+        let provers: Vec<_> = commitments.clone().into_keys().collect();
+        let number_of_misproving_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let misproving_parties = provers
+            .clone()
+            .into_iter()
+            .choose_multiple(&mut OsRng, number_of_misproving_parties);
+
+        let proof_shares: HashMap<_, _> = proof_shares
+            .clone()
+            .into_iter()
+            .map(|(party_id, proof_share)| {
+                (
+                    party_id,
+                    if misproving_parties.contains(&party_id) {
+                        if *misproving_parties.first().unwrap() == party_id {
+                            // try decommitting to a wrong value and see if we get caught
+                            wrong_proof_shares.get(&party_id).cloned().unwrap()
+                        } else {
+                            // try a replay attack and see if we get caught
+                            proof_shares
+                                .get(misproving_parties.first().unwrap())
+                                .unwrap()
+                                .clone()
+                        }
+                    } else {
+                        proof_share
+                    },
+                )
+            })
+            .collect();
+
+        assert!(proof_aggregation_round_parties
+            .into_iter()
+            .all(|(party_id, party)| {
+                let mut misproving_parties_for_party: Vec<_> = misproving_parties
+                    .clone()
+                    .into_iter()
+                    .filter(|&pid| pid != party_id)
+                    .collect();
+                misproving_parties_for_party.sort();
+
+                let res = party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng);
+                if misproving_parties_for_party.is_empty() {
+                    res.is_ok()
+                } else {
+                    matches!(
+                        res.err().unwrap().try_into().unwrap(),
+                        Error::ProofShareVerification(parties) if parties == misproving_parties_for_party
+                    )
+                }
+            }));
+    }
+
     pub fn unresponsive_parties_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output>,
