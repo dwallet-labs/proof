@@ -236,12 +236,13 @@ pub mod test_helpers {
             .collect();
 
         let unresponsive_parties = vec![provers[0]];
+
         assert!(matches!(
             decommitment_round(commitments, decommitment_round_parties)
                 .err()
                 .unwrap(),
-            Error::UnresponsiveParties(unresponsive_parties)
-        ))
+            Error::UnresponsiveParties(parties) if parties == unresponsive_parties
+        ));
     }
 
     pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
