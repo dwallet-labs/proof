@@ -235,6 +235,7 @@ pub mod test_helpers {
             .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
             .collect();
 
+        let unresponsive_parties = vec![provers[0]];
         assert!(matches!(
             decommitment_round(commitments, decommitment_round_parties)
                 .err()
