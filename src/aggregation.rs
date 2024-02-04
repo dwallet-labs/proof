@@ -267,10 +267,16 @@ pub mod test_helpers {
         let (proof_shares, proof_aggregation_parties) =
             proof_share_round(decommitments, proof_share_round_parties).unwrap();
 
+        let filtered_proof_shares: HashMap<_, _> = proof_shares
+            .clone()
+            .into_iter()
+            .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
+            .collect();
+
         assert!(
             proof_aggregation_parties.into_iter().all(|(_, proof_aggregation_round_party)|
                 matches!(
-                    proof_aggregation_round_party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng).err().unwrap().try_into().unwrap(),
+                    proof_aggregation_round_party.aggregate_proof_shares(filtered_proof_shares.clone(), &mut OsRng).err().unwrap().try_into().unwrap(),
                     Error::UnresponsiveParties(parties) if parties == unresponsive_parties
                 )
             )
