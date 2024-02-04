@@ -6,6 +6,7 @@
 //! type. The state transitions consume the previous state, making it
 //! a compile error to perform the steps out of order or to repeat a
 //! step.
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 
