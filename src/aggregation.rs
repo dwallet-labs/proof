@@ -132,6 +132,7 @@ pub mod test_helpers {
     use rand_core::OsRng;
     use std::collections::HashMap;
     use std::time::Duration;
+
     fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
     ) -> Result<(
@@ -220,7 +221,10 @@ pub mod test_helpers {
         P: CommitmentRoundParty<Output>,
     >(
         commitment_round_parties: HashMap<PartyID, P>,
-    ) {
+    ) where
+        P::DecommitmentRoundParty: Clone,
+        <P::DecommitmentRoundParty as DecommitmentRoundParty<Output>>::ProofShareRoundParty: Clone,
+    {
         let (commitments, decommitment_round_parties) =
             commitment_round(commitment_round_parties).unwrap();
 
@@ -230,19 +234,47 @@ pub mod test_helpers {
             .clone()
             .into_iter()
             .choose_multiple(&mut OsRng, number_of_unresponsive_parties);
-        let commitments = commitments
+
+        let filtered_commitments = commitments
+            .clone()
             .into_iter()
             .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
             .collect();
 
-        let unresponsive_parties = vec![provers[0]];
-
         assert!(matches!(
-            decommitment_round(commitments, decommitment_round_parties)
+            decommitment_round(filtered_commitments, decommitment_round_parties.clone())
                 .err()
                 .unwrap(),
             Error::UnresponsiveParties(parties) if parties == unresponsive_parties
         ));
+
+        let (decommitments, proof_share_round_parties) =
+            decommitment_round(commitments, decommitment_round_parties).unwrap();
+
+        let filtered_decommitments = decommitments
+            .clone()
+            .into_iter()
+            .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
+            .collect();
+
+        assert!(matches!(
+            proof_share_round(filtered_decommitments, proof_share_round_parties.clone())
+                .err()
+                .unwrap(),
+            Error::UnresponsiveParties(parties) if parties == unresponsive_parties
+        ));
+
+        let (proof_shares, proof_aggregation_parties) =
+            proof_share_round(decommitments, proof_share_round_parties).unwrap();
+
+        assert!(
+            proof_aggregation_parties.into_iter().all(|(_, proof_aggregation_round_party)|
+                matches!(
+                    proof_aggregation_round_party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng).err().unwrap().try_into().unwrap(),
+                    Error::UnresponsiveParties(parties) if parties == unresponsive_parties
+                )
+            )
+        );
     }
 
     pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
