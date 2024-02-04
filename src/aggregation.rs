@@ -128,10 +128,10 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
 pub mod test_helpers {
     use super::*;
     use criterion::{measurement::Measurement, measurement::WallTime};
+    use rand::seq::IteratorRandom;
     use rand_core::OsRng;
     use std::collections::HashMap;
     use std::time::Duration;
-
     fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
     ) -> Result<(
@@ -215,13 +215,32 @@ pub mod test_helpers {
             .unzip())
     }
 
-    pub fn unresponsive_parties_abort_session_identifiably<
+    pub fn unresponsive_parties_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output>,
     >(
         commitment_round_parties: HashMap<PartyID, P>,
     ) {
-        let (commitments, decommitment_round_parties) = commitment_round(commitment_round_parties);
+        let (commitments, decommitment_round_parties) =
+            commitment_round(commitment_round_parties).unwrap();
+
+        let provers: Vec<_> = commitments.clone().into_keys().collect();
+        let number_of_unresponsive_parties = if commitments.keys().len() == 2 { 1 } else { 2 };
+        let unresponsive_parties = provers
+            .clone()
+            .into_iter()
+            .choose_multiple(&mut OsRng, number_of_unresponsive_parties);
+        let commitments = commitments
+            .into_iter()
+            .filter(|(party_id, _)| !unresponsive_parties.contains(party_id))
+            .collect();
+
+        assert!(matches!(
+            decommitment_round(commitments, decommitment_round_parties)
+                .err()
+                .unwrap(),
+            Error::UnresponsiveParties(unresponsive_parties)
+        ))
     }
 
     pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(

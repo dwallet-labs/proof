@@ -14,10 +14,11 @@ thiserror = "1.0"
 
 criterion = { version = "0.5", features = ["html_reports"], optional = true }
 rand_core = { version = "0.6", features = ["std"], optional = true }
+rand = { version = "0.8", features = ["std"], optional = true }
 rstest = { version = "0.18", optional = true }
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["std"] }
 
 [features]
-test_helpers = ["dep:criterion", "dep:rand_core", "dep:rstest"]
+test_helpers = ["dep:criterion", "dep:rand_core", "dep:rand", "dep:rstest"]
