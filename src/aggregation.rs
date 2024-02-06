@@ -7,13 +7,11 @@
 //! a compile error to perform the steps out of order or to repeat a
 //! step.
 
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use crypto_bigint::rand_core::CryptoRngCore;
-use serde::{Deserialize, Serialize};
-
 use group::PartyID;
+use serde::{Deserialize, Serialize};
 
 /// Proof aggregation error.
 #[derive(thiserror::Error, Debug)]
@@ -57,7 +55,8 @@ pub trait CommitmentRoundParty<Output>: Sized {
     type DecommitmentRoundParty: DecommitmentRoundParty<Output, Commitment = Self::Commitment>;
 
     /// The commitment round of the proof aggregation protocol.
-    /// Receives `self` and not `&self`, to enforce [`Self::DecommitmentRoundParty`] can be instantiated only via a valid state transition.
+    /// Receives `self` and not `&self`, to enforce [`Self::DecommitmentRoundParty`] can be
+    /// instantiated only via a valid state transition.
     fn commit_statements_and_statement_mask(
         self,
         rng: &mut impl CryptoRngCore,
@@ -77,8 +76,9 @@ pub trait DecommitmentRoundParty<Output>: Sized {
     type ProofShareRoundParty: ProofShareRoundParty<Output, Decommitment = Self::Decommitment>;
 
     /// The decommitment round of the proof aggregation protocol.
-    /// Receives `self` and not `&self`, to enforce [`Self::ProofShareRoundParty`] can be instantiated only via a valid state transition.
-    /// Receives `commitments` the outputs of the preceding round from all parties.
+    /// Receives `self` and not `&self`, to enforce [`Self::ProofShareRoundParty`] can be
+    /// instantiated only via a valid state transition. Receives `commitments` the outputs of
+    /// the preceding round from all parties.
     fn decommit_statements_and_statement_mask(
         self,
         commitments: HashMap<PartyID, Self::Commitment>,
@@ -102,8 +102,9 @@ pub trait ProofShareRoundParty<Output>: Sized {
     >;
 
     /// The decommitment round of the proof aggregation protocol.
-    /// Receives `self` and not `&self`, to enforce [`Self::ProofAggregationRoundParty`] can be instantiated only via a valid state transition.
-    /// Receives `decommitments` the outputs of the preceding round from all parties.
+    /// Receives `self` and not `&self`, to enforce [`Self::ProofAggregationRoundParty`] can be
+    /// instantiated only via a valid state transition. Receives `decommitments` the outputs of
+    /// the preceding round from all parties.
     fn generate_proof_share(
         self,
         decommitments: HashMap<PartyID, Self::Decommitment>,
