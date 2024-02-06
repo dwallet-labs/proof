@@ -58,7 +58,6 @@ jobs:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fmt Check
-        # Workaround for rust-lang/cargo#7732
         run: cargo fmt --all -- --check
 
   test:
