@@ -31,9 +31,10 @@ pub trait RangeProof<
 
     /// The public parameters of the range proof.
     ///
-    /// Includes the public parameters of the commitment scheme, and any range claims if the scheme permits such.
+    /// Includes the public parameters of the commitment scheme,
+    /// and any range of claims if the scheme permits such.
     ///
-    /// SECURITY NOTE: Needs to be inserted to the  Fiat-Shamir Transcript of the proof protocol.
+    /// SECURITY NOTE: Needs to be inserted to the Fiat-Shamir Transcript of the proof protocol.
     type PublicParameters<const NUM_RANGE_CLAIMS: usize>: AsRef<
         commitment::PublicParameters<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, Self::CommitmentScheme<NUM_RANGE_CLAIMS>>
     > + Serialize

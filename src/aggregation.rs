@@ -4,7 +4,7 @@
 //!
 //! Each state of the MPC protocol is represented by a different Rust
 //! type. The state transitions consume the previous state, making it
-//! a compile error to perform the steps out of order or to repeat a
+//! a compiler error to perform the steps out of order or to repeat a
 //! step.
 
 use std::{collections::HashMap, fmt::Debug};
