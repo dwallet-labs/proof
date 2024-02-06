@@ -6,6 +6,7 @@ mod transcript_protocol;
 pub use transcript_protocol::TranscriptProtocol;
 
 pub mod aggregation;
+pub mod range;
 
 /// Proof error.
 #[derive(thiserror::Error, Debug)]
