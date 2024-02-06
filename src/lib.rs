@@ -1,5 +1,10 @@
 // Author: dWallet Labs, LTD.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
+
+mod transcript_protocol;
+
+pub use transcript_protocol::TranscriptProtocol;
+
 pub mod aggregation;
 pub mod range;
 
@@ -11,6 +16,9 @@ pub enum Error {
 
     #[error("an internal error that should never have happened and signifies a bug")]
     InternalError,
+
+    #[error("aggregation error")]
+    Aggregation(#[from] aggregation::Error),
 
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),
