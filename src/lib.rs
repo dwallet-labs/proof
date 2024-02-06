@@ -4,6 +4,8 @@ mod transcript_protocol;
 
 pub use transcript_protocol::TranscriptProtocol;
 
+pub mod aggregation;
+
 /// Proof error.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -12,6 +14,9 @@ pub enum Error {
 
     #[error("an internal error that should never have happened and signifies a bug")]
     InternalError,
+
+    #[error("aggregation error")]
+    Aggregation(#[from] aggregation::Error),
 
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),

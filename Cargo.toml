@@ -12,7 +12,8 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 group = { git = "https://github.com/dwallet-labs/group.git" }
 thiserror = "1.0"
 
+
 [dev-dependencies]
+rand_core = { version = "0.6", features = ["std"] }
 
 [features]
-
