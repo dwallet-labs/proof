@@ -52,6 +52,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "commitment"
+version = "0.1.0"
+source = "git+https://github.com/dwallet-labs/commitment.git#f1ed5f2246e630e5f3206abd479f8ec3e2d6253a"
+dependencies = [
+ "crypto-bigint",
+ "group 0.1.0",
+ "merlin",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,6 +346,7 @@ dependencies = [
 name = "proof"
 version = "0.1.0"
 dependencies = [
+ "commitment",
  "crypto-bigint",
  "group 0.1.0",
  "merlin",
