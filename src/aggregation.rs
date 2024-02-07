@@ -7,6 +7,8 @@
 //! a compilation error to perform the steps out of order or to repeat a
 //! step.
 
+#![allow(clippy::type_complexity)]
+
 use std::{collections::HashMap, fmt::Debug};
 
 use crypto_bigint::rand_core::CryptoRngCore;
@@ -131,15 +133,17 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
 
 // These tests helpers can be used for different `group` implementations,
 // therefor they need to be exported.
-// Since exporting rust `#[cfg(test)]` is impossible, they exist in a dedicated feature-gated module.
+// Since exporting rust `#[cfg(test)]` is impossible, they exist in a dedicated feature-gated
+// module.
 #[cfg(feature = "test_helpers")]
 pub mod test_helpers {
-    use super::*;
-    use criterion::{measurement::Measurement, measurement::WallTime};
+    use std::{collections::HashMap, time::Duration};
+
+    use criterion::measurement::{Measurement, WallTime};
     use rand::seq::IteratorRandom;
     use rand_core::OsRng;
-    use std::collections::HashMap;
-    use std::time::Duration;
+
+    use super::*;
 
     fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
@@ -512,12 +516,7 @@ pub mod test_helpers {
         let mut decommitment_round_time = Duration::default();
         let mut proof_share_round_time = Duration::default();
 
-        let batch_size = commitment_round_parties
-            .iter()
-            .next()
-            .unwrap()
-            .1
-            .len();
+        let batch_size = commitment_round_parties.iter().next().unwrap().1.len();
 
         let commitments_and_decommitment_round_parties: HashMap<_, Vec<(_, _)>> =
             commitment_round_parties
