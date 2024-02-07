@@ -128,6 +128,9 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
     ) -> std::result::Result<Output, Self::Error>;
 }
 
+// These tests helpers can be used for different `group` implementations,
+// therefor they need to be exported.
+// Since exporting rust `#[cfg(test)]` is impossible, they exist in a dedicated feature-gated module.
 #[cfg(feature = "test_helpers")]
 pub mod test_helpers {
     use super::*;
@@ -506,7 +509,6 @@ pub mod test_helpers {
             .iter()
             .next()
             .unwrap()
-            .clone()
             .1
             .len();
 
