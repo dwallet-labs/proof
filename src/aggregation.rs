@@ -220,6 +220,7 @@ pub mod test_helpers {
             .unzip())
     }
 
+    /// Test identifiable abort of wrong decommitments.
     pub fn wrong_decommitment_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output> + Clone,
@@ -287,6 +288,7 @@ pub mod test_helpers {
         );
     }
 
+    /// Test identifiable abort of wrong proof shares.
     pub fn failed_proof_share_verification_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output>,
@@ -365,6 +367,7 @@ pub mod test_helpers {
             }));
     }
 
+    /// Test identifiable abort of unresponsive parties.
     pub fn unresponsive_parties_aborts_session_identifiably<
         Output,
         P: CommitmentRoundParty<Output>,
@@ -384,6 +387,7 @@ pub mod test_helpers {
             .into_iter()
             .choose_multiple(&mut OsRng, number_of_unresponsive_parties);
 
+        // Simulate unresponsive parties by filtering out their messages, see if we identify them.
         let filtered_commitments: HashMap<_, _> = commitments
             .clone()
             .into_iter()
@@ -460,7 +464,8 @@ pub mod test_helpers {
         );
     }
 
-    pub fn aggregates_internal<Output, P: CommitmentRoundParty<Output>>(
+    /// Test aggregation.
+    pub fn aggregates<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
     ) -> (Duration, Duration, Duration, Duration, Duration, Output) {
         let (
@@ -470,7 +475,7 @@ pub mod test_helpers {
             proof_aggregation_round_time,
             total_time,
             outputs,
-        ) = aggregates_internal_multiple(
+        ) = aggregates_multiple(
             commitment_round_parties
                 .into_iter()
                 .map(|(party_id, party)| (party_id, vec![party]))
@@ -487,7 +492,8 @@ pub mod test_helpers {
         )
     }
 
-    pub fn aggregates_internal_multiple<Output, P: CommitmentRoundParty<Output>>(
+    /// Test aggregation over multiple claims in parallel.
+    pub fn aggregates_multiple<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, Vec<P>>,
     ) -> (
         Duration,
