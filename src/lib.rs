@@ -23,7 +23,7 @@ pub enum Error {
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),
 
-    #[error("invalid proof - did not satisfy the verification equation")]
+    #[error("invalid proof: did not satisfy the verification equation")]
     ProofVerification,
 
     #[error("group error")]
