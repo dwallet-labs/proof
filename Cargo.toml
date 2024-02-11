@@ -22,6 +22,7 @@ curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-fea
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["std"] }
+bulletproofs = { git = "https://github.com/ycscaly/bulletproofs.git", features = ["cloneable"] }
 
 [features]
 test_helpers = ["dep:criterion", "dep:rand_core", "dep:rand", "dep:rstest"]

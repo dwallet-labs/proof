@@ -426,3 +426,138 @@ impl RangeProof {
         }
     }
 }
+
+#[cfg(feature = "test_helpers")]
+mod tests {
+    use super::*;
+    use crate::aggregation::test_helpers;
+    use group::Samplable;
+    use group::{GroupElement, PartyID};
+    use rand::Rng;
+    use rand_core::OsRng;
+    use rstest::rstest;
+    use std::collections::{HashMap, HashSet};
+
+    const NUM_RANGE_CLAIMS: usize = 4;
+
+    fn generate_commitment_round_parties(
+        number_of_parties: usize,
+        batch_size: usize,
+    ) -> HashMap<PartyID, commitment_round::Party<NUM_RANGE_CLAIMS>> {
+        let mut provers = HashSet::new();
+        (1..=number_of_parties).for_each(|i| {
+            let party_id: u16 = i.try_into().unwrap();
+
+            provers.insert(party_id);
+        });
+
+        let ristretto_scalar_public_parameters = ristretto::scalar::PublicParameters::default();
+
+        (1..=number_of_parties)
+            .map(|party_id| {
+                let party_id: u16 = party_id.try_into().unwrap();
+
+                let transcript = Transcript::new("".as_bytes());
+                let witnesses = (0..batch_size)
+                    .map(|_| {
+                        array::from_fn(|_| {
+                            ristretto::Scalar::new(
+                                U64::from(OsRng.gen::<u32>()).into(),
+                                &ristretto_scalar_public_parameters,
+                            )
+                            .unwrap()
+                        })
+                        .into()
+                    })
+                    .collect();
+
+                let commitments_randomness = (0..batch_size)
+                    .map(|_| {
+                        array::from_fn(|_| {
+                            ristretto::Scalar::sample(
+                                &ristretto_scalar_public_parameters,
+                                &mut OsRng,
+                            )
+                            .unwrap()
+                        })
+                        .into()
+                    })
+                    .collect();
+
+                (
+                    party_id,
+                    commitment_round::Party {
+                        party_id,
+                        provers: provers.clone(),
+                        transcript,
+                        witnesses,
+                        commitments_randomness,
+                    },
+                )
+            })
+            .collect()
+    }
+
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 3)]
+    #[case(5, 2)]
+    fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
+        let commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        test_helpers::aggregates(commitment_round_parties);
+    }
+
+    #[rstest]
+    #[case(2, 1)]
+    #[case(3, 1)]
+    #[case(5, 2)]
+    fn unresponsive_parties_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        test_helpers::unresponsive_parties_aborts_session_identifiably(commitment_round_parties);
+    }
+
+    #[rstest]
+    #[case(2, 1)]
+    #[case(3, 1)]
+    #[case(5, 2)]
+    fn wrong_decommitment_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        test_helpers::wrong_decommitment_aborts_session_identifiably(commitment_round_parties);
+    }
+
+    #[rstest]
+    #[case(2, 1)]
+    #[case(3, 1)]
+    #[case(5, 2)]
+    fn failed_proof_share_verification_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        let wrong_commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        test_helpers::failed_proof_share_verification_aborts_session_identifiably(
+            commitment_round_parties,
+            wrong_commitment_round_parties,
+        );
+    }
+
+    // TODO: test where one party tries out of range
+}

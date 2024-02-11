@@ -49,7 +49,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The commitment round party of a proof aggregation protocol.
 pub trait CommitmentRoundParty<Output>: Sized {
     /// Commitment error.
-    type Error: Debug + TryInto<Error>;
+    type Error: Debug + TryInto<Error, Error = Self::Error>;
 
     /// The output of the commitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;

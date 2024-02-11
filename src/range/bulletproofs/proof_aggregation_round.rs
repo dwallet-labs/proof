@@ -22,6 +22,7 @@ use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
 use crate::range::CommitmentScheme;
 use crate::{aggregation, Error, Result};
 
+#[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) party_id: PartyID,
     pub(super) provers: HashSet<PartyID>,

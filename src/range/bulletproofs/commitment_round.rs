@@ -17,6 +17,7 @@ use group::{PartyID, Samplable};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub party_id: PartyID,
     // The set of parties ${P_i}$ participating in the proof aggregation protocol.

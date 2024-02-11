@@ -15,6 +15,7 @@ use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
 use group::PartyID;
 use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) party_id: PartyID,
     pub(super) provers: HashSet<PartyID>,
