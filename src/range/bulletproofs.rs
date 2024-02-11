@@ -225,7 +225,6 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         );
         let commitment_generators = PedersenGens::default();
 
-        // TODO: convert their verification error to our range proof error?
         let mut transcript = transcript;
         Ok(self.proof.verify_multiple_with_rng(
             &bulletproofs_generators,
@@ -241,8 +240,6 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
     }
 }
 
-// TODO: anything else? bullet proofs generators is a nice idea but we cannot access it.. also the
-// code will hardcodedly call new()
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PublicParameters<const NUM_RANGE_CLAIMS: usize> {
     pub commitment_scheme_public_parameters: commitment::PublicParameters<
@@ -255,8 +252,6 @@ pub struct PublicParameters<const NUM_RANGE_CLAIMS: usize> {
         >,
     >,
     pub number_of_range_claims: usize,
-    // TODO: number of parties?
-    // TODO: range claims? i.e. number of bits to actually prove
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> Default for PublicParameters<NUM_RANGE_CLAIMS> {
