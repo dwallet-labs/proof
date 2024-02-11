@@ -1,0 +1,124 @@
+use core::{array, iter};
+use std::collections::HashSet;
+use std::{collections::HashMap, marker::PhantomData};
+
+use super::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS;
+use bulletproofs::range_proof_mpc::messages::ProofShare;
+use bulletproofs::range_proof_mpc::{
+    dealer::{
+        DealerAwaitingBitCommitments, DealerAwaitingPolyCommitments, DealerAwaitingProofShares,
+    },
+    messages,
+    messages::PolyCommitment,
+    party::{PartyAwaitingBitChallenge, PartyAwaitingPolyChallenge},
+    MPCError,
+};
+use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
+use group::helpers::FlatMapResults;
+use group::PartyID;
+use serde::{Deserialize, Serialize};
+
+use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
+use crate::range::CommitmentScheme;
+use crate::{aggregation, Error, Result};
+
+pub struct Party<const NUM_RANGE_CLAIMS: usize> {
+    pub(super) party_id: PartyID,
+    pub(super) provers: HashSet<PartyID>,
+    pub(super) number_of_witnesses: usize,
+    pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
+}
+
+pub type Output<const NUM_RANGE_CLAIMS: usize> = (
+    super::RangeProof,
+    Vec<
+        commitment::CommitmentSpaceGroupElement<
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            CommitmentScheme<
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                NUM_RANGE_CLAIMS,
+                super::RangeProof,
+            >,
+        >,
+    >,
+);
+
+impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_CLAIMS>>
+    for Party<NUM_RANGE_CLAIMS>
+{
+    type Error = Error;
+
+    type ProofShare = Vec<ProofShare>;
+
+    fn aggregate_proof_shares(
+        self,
+        proof_shares: HashMap<PartyID, Self::ProofShare>,
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<Output<NUM_RANGE_CLAIMS>> {
+        let proof_shares =
+            process_incoming_messages(self.party_id, self.provers.clone(), proof_shares)?;
+
+        let mut proof_shares: Vec<(_, _)> = proof_shares.into_iter().collect();
+
+        proof_shares.sort_by_key(|(party_id, _)| *party_id);
+
+        let proof_shares: Vec<_> = proof_shares
+            .into_iter()
+            .flat_map(|(_, proof_shares)| proof_shares)
+            .collect();
+
+        // TODO: should we abort identifiably in the case of decompression error?
+        let bulletproofs_commitments: Vec<_> = self
+            .dealer_awaiting_proof_shares
+            .bit_commitments
+            .iter()
+            .map(|vc| vc.V_j.try_into().map_err(|_| Error::InternalError))
+            .collect::<Result<Vec<_>>>()?;
+
+        let proof = self
+            .dealer_awaiting_proof_shares
+            .receive_shares_with_rng(&proof_shares, rng)
+            .map_err(|e| match e {
+                MPCError::MalformedProofShares { bad_shares } => {
+                    // TODO: verify this
+                    bad_shares
+                        .into_iter()
+                        .map(|i| u16::try_from(i).ok().and_then(|i| i.checked_add(1)))
+                        .collect::<Option<Vec<_>>>()
+                        .map(|malicious_parties| {
+                            Error::Aggregation(aggregation::Error::ProofShareVerification(
+                                malicious_parties,
+                            ))
+                        })
+                        .unwrap_or(Error::InternalError)
+                }
+                _ => Error::InvalidParameters,
+            })?;
+
+        let range_proof =
+            super::RangeProof::new_aggregated(proof, bulletproofs_commitments.clone());
+
+        // TODO: dry this with bulletproofs code
+        let mut commitments_iter = bulletproofs_commitments.into_iter();
+        let commitments: Result<Vec<_>> = iter::repeat_with(|| {
+            // Unflatten individual commitments to a multi-commitment,
+            // to fit the `RangeProof` API which returns a vector of commitments over `NUM_RANGE_CLAIMS` elements.
+            array::from_fn(|_| commitments_iter.next().ok_or(Error::InvalidParameters))
+                .flat_map_results()
+                .map(
+                    commitment::CommitmentSpaceGroupElement::<
+                        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                        CommitmentScheme<
+                            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                            NUM_RANGE_CLAIMS,
+                            super::RangeProof,
+                        >,
+                    >::from,
+                )
+        })
+        .take(self.number_of_witnesses * self.provers.len())
+        .collect();
+
+        Ok((range_proof, commitments?))
+    }
+}

@@ -9,6 +9,7 @@
 
 #![allow(clippy::type_complexity)]
 
+use std::collections::HashSet;
 use std::{collections::HashMap, fmt::Debug};
 
 use crypto_bigint::rand_core::CryptoRngCore;
@@ -48,7 +49,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The commitment round party of a proof aggregation protocol.
 pub trait CommitmentRoundParty<Output>: Sized {
     /// Commitment error.
-    type Error: Debug + TryInto<Error, Error = Self::Error>;
+    type Error: Debug + TryInto<Error>;
 
     /// The output of the commitment round.
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
@@ -129,6 +130,38 @@ pub trait ProofAggregationRoundParty<Output>: Sized {
         proof_shares: HashMap<PartyID, Self::ProofShare>,
         rng: &mut impl CryptoRngCore,
     ) -> std::result::Result<Output, Self::Error>;
+}
+
+pub fn process_incoming_messages<T>(
+    party_id: PartyID,
+    provers: HashSet<PartyID>,
+    messages: HashMap<PartyID, T>,
+) -> Result<HashMap<PartyID, T>> {
+    // First remove parties that didn't participate in the previous round, as they shouldn't be
+    // allowed to join the session half-way, and we can self-heal this malicious behaviour
+    // without needing to stop the session and report.
+    let messages: HashMap<PartyID, _> = messages
+        .into_iter()
+        .filter(|(pid, _)| *pid != party_id)
+        .filter(|(pid, _)| provers.contains(pid))
+        .collect();
+
+    let current_round_party_ids: HashSet<PartyID> = messages.keys().copied().collect();
+
+    let other_provers: HashSet<_> = provers.into_iter().filter(|pid| *pid != party_id).collect();
+
+    let mut unresponsive_parties: Vec<PartyID> = other_provers
+        .difference(&current_round_party_ids)
+        .cloned()
+        .collect();
+
+    unresponsive_parties.sort();
+
+    if !unresponsive_parties.is_empty() {
+        return Err(Error::UnresponsiveParties(unresponsive_parties))?;
+    }
+
+    Ok(messages)
 }
 
 // These tests helpers can be used for different `group` implementations,
