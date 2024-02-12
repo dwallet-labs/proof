@@ -95,11 +95,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         }
 
         let number_of_parties = number_of_parties
-            .checked_mul(
-                number_of_witnesses
-                    .try_into()
-                    .map_err(|_| Error::InternalError)?,
-            )
+            .checked_mul(number_of_witnesses)
             .ok_or(Error::InternalError)?;
 
         let commitments_randomness: Vec<_> = self
@@ -162,7 +158,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         let decommitment_round_party = decommitment_round::Party {
             party_id: self.party_id,
             provers: self.provers,
-            number_of_witnesses,
+            number_of_witnesses: batch_size,
             dealer_awaiting_bit_commitments,
             parties_awaiting_bit_challenge,
         };

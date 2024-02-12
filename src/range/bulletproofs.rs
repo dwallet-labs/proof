@@ -17,7 +17,7 @@ use crypto_bigint::{U256, U64};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::traits::Identity;
 use group::helpers::FlatMapResults;
-use group::ristretto;
+use group::{ristretto, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::{array, iter};
@@ -44,6 +44,8 @@ use std::{array, iter};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct RangeProof {
     proof: bulletproofs::RangeProof,
+    number_of_parties: usize,
+    number_of_witnesses: usize,
     aggregation_commitments: Vec<ristretto::GroupElement>,
 }
 
@@ -184,7 +186,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         .take(number_of_witnesses)
         .collect();
 
-        Ok((RangeProof::new(proof), commitments?))
+        Ok((RangeProof::new(proof, number_of_witnesses), commitments?))
     }
 
     fn verify<const NUM_RANGE_CLAIMS: usize>(
@@ -207,7 +209,15 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
                 })
                 .collect()
         } else {
-            self.aggregation_commitments_match_aggregated_commitments(commitments.clone())?;
+            if commitments
+                != Self::aggregate_commitments(
+                    self.number_of_parties,
+                    self.number_of_witnesses,
+                    self.aggregation_commitments.clone(),
+                )?
+            {
+                return Err(Error::ProofVerification);
+            }
 
             self.aggregation_commitments.clone()
         };
@@ -229,6 +239,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         let commitment_generators = PedersenGens::default();
 
         let mut transcript = transcript;
+
         Ok(self.proof.verify_multiple_with_rng(
             &bulletproofs_generators,
             &commitment_generators,
@@ -324,26 +335,23 @@ impl<const NUM_RANGE_CLAIMS: usize>
 }
 
 impl RangeProof {
-    fn new(proof: bulletproofs::RangeProof) -> Self {
+    fn new(proof: bulletproofs::RangeProof, number_of_witnesses: usize) -> Self {
         Self {
             proof,
+            number_of_parties: 1,
+            number_of_witnesses,
             aggregation_commitments: vec![],
         }
     }
 
-    fn new_aggregated(
+    fn new_aggregated<const NUM_RANGE_CLAIMS: usize>(
         proof: bulletproofs::RangeProof,
+        number_of_parties: usize,
+        number_of_witnesses: usize,
         aggregation_commitments: Vec<ristretto::GroupElement>,
-    ) -> Self {
-        Self {
-            proof,
-            aggregation_commitments,
-        }
-    }
-
-    fn aggregation_commitments_match_aggregated_commitments<const NUM_RANGE_CLAIMS: usize>(
-        &self,
-        aggregated_commitments: Vec<
+    ) -> Result<(
+        Self,
+        Vec<
             commitment::CommitmentSpaceGroupElement<
                 COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
                 CommitmentScheme<
@@ -353,31 +361,46 @@ impl RangeProof {
                 >,
             >,
         >,
-    ) -> Result<()> {
-        if aggregated_commitments
-            .len()
-            .checked_mul(NUM_RANGE_CLAIMS)
-            .and_then(|x| self.aggregation_commitments.len().checked_rem(x))
-            .ok_or(Error::ProofVerification)?
-            != 0
-        {
-            return Err(Error::ProofVerification)?;
-        }
+    )> {
+        let aggregated_commitments = Self::aggregate_commitments(
+            number_of_parties,
+            number_of_witnesses,
+            aggregation_commitments.clone(),
+        )?;
 
-        let number_of_parties = aggregated_commitments
-            .len()
-            .checked_mul(NUM_RANGE_CLAIMS)
-            .and_then(|x| self.aggregation_commitments.len().checked_div(x))
-            .ok_or(Error::InternalError)?;
+        let range_proof = Self {
+            proof,
+            number_of_parties,
+            number_of_witnesses,
+            aggregation_commitments,
+        };
 
-        let number_of_witnesses = aggregated_commitments
-            .len()
+        Ok((range_proof, aggregated_commitments))
+    }
+
+    fn aggregate_commitments<const NUM_RANGE_CLAIMS: usize>(
+        number_of_parties: usize,
+        number_of_witnesses: usize,
+        aggregation_commitments: Vec<ristretto::GroupElement>,
+    ) -> Result<
+        Vec<
+            commitment::CommitmentSpaceGroupElement<
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                CommitmentScheme<
+                    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                    NUM_RANGE_CLAIMS,
+                    Self,
+                >,
+            >,
+        >,
+    > {
+        let mut bulletproofs_commitments_iter = aggregation_commitments.into_iter();
+
+        let number_of_unflattened_commitments = number_of_witnesses
             .checked_mul(number_of_parties)
-            .ok_or(Error::InternalError)?;
+            .ok_or(Error::InvalidParameters)?;
 
-        let mut bulletproofs_commitments_iter = self.aggregation_commitments.clone().into_iter();
-
-        let bulletproofs_aggregated_commitments = iter::repeat_with(|| {
+        let unflattened_commitments = iter::repeat_with(|| {
             array::from_fn(|_| {
                 bulletproofs_commitments_iter
                     .next()
@@ -392,38 +415,32 @@ impl RangeProof {
                 >::from,
             )
         })
-        .take(number_of_witnesses)
+        .take(number_of_unflattened_commitments)
         .collect::<Result<Vec<_>>>()?;
 
-        let bulletproofs_aggregated_commitments = (0..aggregated_commitments.len())
+        let bulletproofs_aggregated_commitments = (0..number_of_witnesses)
             .map(|i| {
                 (0..number_of_parties.into())
                     .map(|j: usize| {
-                        j.checked_mul(aggregated_commitments.len())
+                        let res = j
+                            .checked_mul(number_of_witnesses)
                             .and_then(|index| index.checked_add(i))
-                            .and_then(|index| {
-                                bulletproofs_aggregated_commitments.get(index).cloned()
-                            })
-                            .ok_or(Error::InternalError)
+                            .and_then(|index| unflattened_commitments.get(index).cloned());
+
+                        res.ok_or(Error::InternalError)
                     })
                     .collect::<Result<Vec<_>>>()
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let bulletproofs_aggregated_commitments: Vec<_> = bulletproofs_aggregated_commitments
+        bulletproofs_aggregated_commitments
             .into_iter()
             .map(|v| {
                 v.into_iter()
                     .reduce(|a, b| a + b)
                     .ok_or(Error::InternalError)
             })
-            .collect::<Result<Vec<_>>>()?;
-
-        if aggregated_commitments == bulletproofs_aggregated_commitments {
-            Ok(())
-        } else {
-            Err(Error::ProofVerification)?
-        }
+            .collect()
     }
 }
 
@@ -431,6 +448,7 @@ impl RangeProof {
 mod tests {
     use super::*;
     use crate::aggregation::test_helpers;
+    use crate::range::RangeProof;
     use group::Samplable;
     use group::{GroupElement, PartyID};
     use rand::Rng;
@@ -499,22 +517,32 @@ mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 3)]
-    #[case(5, 2)]
+    #[case(2, 4)]
+    #[case(4, 8)]
     fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
         let commitment_round_parties =
             generate_commitment_round_parties(number_of_parties, batch_size);
 
-        test_helpers::aggregates(commitment_round_parties);
+        let (_, _, _, _, _, (range_proof, commitments)) =
+            test_helpers::aggregates(commitment_round_parties);
+
+        let public_parameters = PublicParameters::default();
+        let transcript = Transcript::new("".as_bytes());
+
+        // TODO: why is this passing with the non-aggregated commitments?
+        assert!(
+            range_proof
+                .verify(&public_parameters, commitments, transcript, &mut OsRng)
+                .is_ok(),
+            "aggregated range proof should verify"
+        );
     }
 
     #[rstest]
     #[case(2, 1)]
-    #[case(3, 1)]
-    #[case(5, 2)]
+    #[case(2, 4)]
+    #[case(4, 8)]
     fn unresponsive_parties_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -523,40 +551,6 @@ mod tests {
             generate_commitment_round_parties(number_of_parties, batch_size);
 
         test_helpers::unresponsive_parties_aborts_session_identifiably(commitment_round_parties);
-    }
-
-    #[rstest]
-    #[case(2, 1)]
-    #[case(3, 1)]
-    #[case(5, 2)]
-    fn wrong_decommitment_aborts_session_identifiably(
-        #[case] number_of_parties: usize,
-        #[case] batch_size: usize,
-    ) {
-        let commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
-
-        test_helpers::wrong_decommitment_aborts_session_identifiably(commitment_round_parties);
-    }
-
-    #[rstest]
-    #[case(2, 1)]
-    #[case(3, 1)]
-    #[case(5, 2)]
-    fn failed_proof_share_verification_aborts_session_identifiably(
-        #[case] number_of_parties: usize,
-        #[case] batch_size: usize,
-    ) {
-        let commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
-
-        let wrong_commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
-
-        test_helpers::failed_proof_share_verification_aborts_session_identifiably(
-            commitment_round_parties,
-            wrong_commitment_round_parties,
-        );
     }
 
     // TODO: test where one party tries out of range

@@ -41,7 +41,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
         rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::ProofShare, Self::ProofAggregationRoundParty)> {
         let decommitments =
-            process_incoming_messages(self.party_id, self.provers.clone(), decommitments)?;
+            process_incoming_messages(self.party_id, self.provers.clone(), decommitments, false)?;
 
         let mut poly_commitments: Vec<(_, _)> = decommitments.into_iter().collect();
 

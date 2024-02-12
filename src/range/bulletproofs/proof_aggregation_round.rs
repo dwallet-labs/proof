@@ -13,6 +13,7 @@ use bulletproofs::range_proof_mpc::{
     party::{PartyAwaitingBitChallenge, PartyAwaitingPolyChallenge},
     MPCError,
 };
+use bulletproofs::RangeProof;
 use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
 use group::helpers::FlatMapResults;
 use group::PartyID;
@@ -57,7 +58,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         rng: &mut impl CryptoRngCore,
     ) -> Result<Output<NUM_RANGE_CLAIMS>> {
         let proof_shares =
-            process_incoming_messages(self.party_id, self.provers.clone(), proof_shares)?;
+            process_incoming_messages(self.party_id, self.provers.clone(), proof_shares, false)?;
 
         let mut proof_shares: Vec<(_, _)> = proof_shares.into_iter().collect();
 
@@ -96,30 +97,11 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                 _ => Error::InvalidParameters,
             })?;
 
-        let range_proof =
-            super::RangeProof::new_aggregated(proof, bulletproofs_commitments.clone());
-
-        // TODO: dry this with bulletproofs code
-        let mut commitments_iter = bulletproofs_commitments.into_iter();
-        let commitments: Result<Vec<_>> = iter::repeat_with(|| {
-            // Unflatten individual commitments to a multi-commitment,
-            // to fit the `RangeProof` API which returns a vector of commitments over `NUM_RANGE_CLAIMS` elements.
-            array::from_fn(|_| commitments_iter.next().ok_or(Error::InvalidParameters))
-                .flat_map_results()
-                .map(
-                    commitment::CommitmentSpaceGroupElement::<
-                        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                        CommitmentScheme<
-                            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                            NUM_RANGE_CLAIMS,
-                            super::RangeProof,
-                        >,
-                    >::from,
-                )
-        })
-        .take(self.number_of_witnesses * self.provers.len())
-        .collect();
-
-        Ok((range_proof, commitments?))
+        super::RangeProof::new_aggregated(
+            proof,
+            self.provers.len(),
+            self.number_of_witnesses,
+            bulletproofs_commitments.clone(),
+        )
     }
 }

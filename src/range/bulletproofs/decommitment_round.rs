@@ -39,7 +39,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::Decommitment, Self::ProofShareRoundParty)> {
         let commitments =
-            process_incoming_messages(self.party_id, self.provers.clone(), commitments)?;
+            process_incoming_messages(self.party_id, self.provers.clone(), commitments, false)?;
 
         let mut bit_commitments: Vec<(_, _)> = commitments.into_iter().collect();
 
