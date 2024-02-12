@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use super::{decommitment_round, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
 use crate::aggregation::CommitmentRoundParty;
 use crate::range::CommitmentScheme;
-use crate::{Error, Result};
+use crate::{aggregation, Error, Result};
 use bulletproofs::{
     range_proof_mpc::{dealer::Dealer, messages::BitCommitment, party},
     BulletproofGens, PedersenGens,
@@ -61,6 +61,12 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         self,
         rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::Commitment, Self::DecommitmentRoundParty)> {
+        if !self.provers.contains(&self.party_id) {
+            return Err(Error::Aggregation(
+                aggregation::Error::NonParticipatingParty,
+            ));
+        }
+
         let batch_size = self.witnesses.len();
 
         // As bulletproofs proves a single witness, flatten the witnesses vector

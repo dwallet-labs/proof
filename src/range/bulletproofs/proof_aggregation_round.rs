@@ -85,7 +85,15 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                     // TODO: verify this
                     bad_shares
                         .into_iter()
-                        .map(|i| u16::try_from(i).ok().and_then(|i| i.checked_add(1)))
+                        .map(|i| {
+                            self.number_of_witnesses
+                                .checked_mul(NUM_RANGE_CLAIMS)
+                                .and_then(|number_of_bulletproof_parties_per_party| {
+                                    i.checked_div(number_of_bulletproof_parties_per_party)
+                                        .and_then(|i| i.checked_add(1))
+                                        .and_then(|i| u16::try_from(i).ok())
+                                })
+                        })
                         .collect::<Option<Vec<_>>>()
                         .map(|malicious_parties| {
                             Error::Aggregation(aggregation::Error::ProofShareVerification(

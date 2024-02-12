@@ -182,7 +182,7 @@ pub mod test_helpers {
 
     use super::*;
 
-    fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
+    pub fn commitment_round<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, P>,
     ) -> Result<(
         HashMap<PartyID, P::Commitment>,
@@ -207,7 +207,7 @@ pub mod test_helpers {
             .unzip())
     }
 
-    fn decommitment_round<Output, P: DecommitmentRoundParty<Output>>(
+    pub fn decommitment_round<Output, P: DecommitmentRoundParty<Output>>(
         commitments: HashMap<PartyID, P::Commitment>,
         decommitment_round_parties: HashMap<PartyID, P>,
     ) -> Result<(
@@ -236,7 +236,7 @@ pub mod test_helpers {
             .unzip())
     }
 
-    fn proof_share_round<Output, P: ProofShareRoundParty<Output>>(
+    pub fn proof_share_round<Output, P: ProofShareRoundParty<Output>>(
         decommitments: HashMap<PartyID, P::Decommitment>,
         proof_share_round_parties: HashMap<PartyID, P>,
     ) -> Result<(
@@ -321,7 +321,7 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if miscommitting_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message
+                    // No reason to check malicious party reported malicious behavior.
                     true
                 } else {
                     let res = party.generate_proof_share(decommitments.clone(), &mut OsRng);
@@ -396,7 +396,7 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if misproving_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message
+                    // No reason to check malicious party reported malicious behavior.
                     true
                 } else {
                     let res = party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng);
@@ -442,7 +442,7 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message
+                    // No reason that a party would proceed to the next round if it didn't send any message.
                     true
                 } else {
                     let res = party.decommit_statements_and_statement_mask(
@@ -470,7 +470,7 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message
+                    // No reason that a party would proceed to the next round if it didn't send any message.
                     true
                 } else {
                     let res =
@@ -495,7 +495,7 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message
+                    // No reason that a party would proceed to the next round if it didn't send any message.
                     true
                 } else {
                     let res =

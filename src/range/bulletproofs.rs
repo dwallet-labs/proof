@@ -447,10 +447,17 @@ impl RangeProof {
 #[cfg(feature = "test_helpers")]
 mod tests {
     use super::*;
-    use crate::aggregation::test_helpers;
+    use crate::aggregation;
+    use crate::aggregation::test_helpers::{
+        commitment_round, decommitment_round, proof_share_round,
+    };
+    use crate::aggregation::ProofAggregationRoundParty;
+    use crate::aggregation::{test_helpers, ProofShareRoundParty};
     use crate::range::RangeProof;
+    use bulletproofs::range_proof_mpc::party;
     use group::Samplable;
     use group::{GroupElement, PartyID};
+    use rand::prelude::IteratorRandom;
     use rand::Rng;
     use rand_core::OsRng;
     use rstest::rstest;
@@ -477,16 +484,7 @@ mod tests {
 
                 let transcript = Transcript::new("".as_bytes());
                 let witnesses = (0..batch_size)
-                    .map(|_| {
-                        array::from_fn(|_| {
-                            ristretto::Scalar::new(
-                                U64::from(OsRng.gen::<u32>()).into(),
-                                &ristretto_scalar_public_parameters,
-                            )
-                            .unwrap()
-                        })
-                        .into()
-                    })
+                    .map(|_| array::from_fn(|_| U64::from(OsRng.gen::<u32>()).into()).into())
                     .collect();
 
                 let commitments_randomness = (0..batch_size)
@@ -530,7 +528,6 @@ mod tests {
         let public_parameters = PublicParameters::default();
         let transcript = Transcript::new("".as_bytes());
 
-        // TODO: why is this passing with the non-aggregated commitments?
         assert!(
             range_proof
                 .verify(&public_parameters, commitments, transcript, &mut OsRng)
@@ -553,5 +550,86 @@ mod tests {
         test_helpers::unresponsive_parties_aborts_session_identifiably(commitment_round_parties);
     }
 
-    // TODO: test where one party tries out of range
+    #[rstest]
+    #[case(2, 1)]
+    #[case(2, 4)]
+    #[case(4, 8)]
+    fn out_of_range_witness_aborts_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let mut commitment_round_parties =
+            generate_commitment_round_parties(number_of_parties, batch_size);
+
+        let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
+        let number_of_malicious_parties = if provers.len() == 2 { 1 } else { 2 };
+        let mut malicious_parties = provers
+            .clone()
+            .into_iter()
+            .choose_multiple(&mut OsRng, number_of_malicious_parties);
+
+        malicious_parties.sort();
+
+        let (mut commitments, mut decommitment_round_parties) =
+            commitment_round(commitment_round_parties).unwrap();
+
+        let bulletproofs_generators = BulletproofGens::new(
+            RANGE_CLAIM_BITS,
+            number_of_parties * NUM_RANGE_CLAIMS * batch_size,
+        );
+
+        let commitment_generators = PedersenGens::default();
+
+        for party_id in malicious_parties.clone() {
+            let mut malicious_party = decommitment_round_parties.get(&party_id).unwrap().clone();
+            let mut malicious_commitments = commitments.get(&party_id).unwrap().clone();
+
+            // Just out of range by 1.
+            let mut out_of_range_witness = (U64::ONE << 32).into();
+            let malicious_subparty = party::Party::new(
+                bulletproofs_generators.clone(),
+                commitment_generators.clone(),
+                out_of_range_witness,
+                curve25519_dalek::scalar::Scalar::zero(),
+                RANGE_CLAIM_BITS,
+            )
+            .unwrap();
+
+            let position = (usize::from(party_id) - 1) * NUM_RANGE_CLAIMS * batch_size;
+
+            let (malicious_subparty, commitment) = malicious_subparty
+                .assign_position_with_rng(position, &mut OsRng)
+                .unwrap();
+
+            malicious_party.parties_awaiting_bit_challenge[0] = malicious_subparty;
+            malicious_commitments[0] = commitment;
+
+            decommitment_round_parties.insert(party_id, malicious_party);
+            commitments.insert(party_id, malicious_commitments);
+        }
+
+        let (decommitments, proof_share_round_parties) =
+            decommitment_round(commitments, decommitment_round_parties).unwrap();
+
+        let (proof_shares, proof_aggregation_round_parties) =
+            proof_share_round(decommitments, proof_share_round_parties).unwrap();
+
+        assert!(proof_aggregation_round_parties
+            .clone()
+            .into_iter()
+            .all(|(party_id, party)| {
+                if malicious_parties.contains(&party_id) {
+                    // No reason to check malicious party reported malicious behavior.
+                    true
+                } else {
+                    let res =
+                        party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng);
+
+                    matches!(
+                        res.err().unwrap().try_into().unwrap(),
+                        Error::Aggregation(aggregation::Error::ProofShareVerification(parties)) if parties == malicious_parties
+                    )
+                }
+            }));
+    }
 }
