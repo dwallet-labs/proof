@@ -1,19 +1,16 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
-use std::{collections::HashMap, marker::PhantomData};
 
 use crate::aggregation::{process_incoming_messages, ProofShareRoundParty};
 use crate::range::bulletproofs::proof_aggregation_round;
-use crate::{aggregation, Error, Result};
+use crate::{Error, Result};
 use bulletproofs::range_proof_mpc::messages::ProofShare;
 use bulletproofs::range_proof_mpc::{
-    dealer::{DealerAwaitingBitCommitments, DealerAwaitingPolyCommitments},
-    messages,
-    messages::PolyCommitment,
-    party::{PartyAwaitingBitChallenge, PartyAwaitingPolyChallenge},
+    dealer::DealerAwaitingPolyCommitments, messages::PolyCommitment,
+    party::PartyAwaitingPolyChallenge,
 };
-use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
+use crypto_bigint::rand_core::CryptoRngCore;
 use group::PartyID;
-use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
@@ -38,7 +35,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
     fn generate_proof_share(
         self,
         decommitments: HashMap<PartyID, Self::Decommitment>,
-        rng: &mut impl CryptoRngCore,
+        _rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::ProofShare, Self::ProofAggregationRoundParty)> {
         let decommitments =
             process_incoming_messages(self.party_id, self.provers.clone(), decommitments, false)?;

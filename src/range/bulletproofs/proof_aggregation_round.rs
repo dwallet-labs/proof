@@ -1,23 +1,11 @@
-use core::{array, iter};
+use std::collections::HashMap;
 use std::collections::HashSet;
-use std::{collections::HashMap, marker::PhantomData};
 
 use super::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS;
 use bulletproofs::range_proof_mpc::messages::ProofShare;
-use bulletproofs::range_proof_mpc::{
-    dealer::{
-        DealerAwaitingBitCommitments, DealerAwaitingPolyCommitments, DealerAwaitingProofShares,
-    },
-    messages,
-    messages::PolyCommitment,
-    party::{PartyAwaitingBitChallenge, PartyAwaitingPolyChallenge},
-    MPCError,
-};
-use bulletproofs::RangeProof;
-use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
-use group::helpers::FlatMapResults;
+use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
+use crypto_bigint::rand_core::CryptoRngCore;
 use group::PartyID;
-use serde::{Deserialize, Serialize};
 
 use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
 use crate::range::CommitmentScheme;

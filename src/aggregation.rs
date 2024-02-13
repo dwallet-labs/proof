@@ -162,7 +162,7 @@ pub fn process_incoming_messages<T>(
     unresponsive_parties.sort();
 
     if !unresponsive_parties.is_empty() {
-        return Err(Error::UnresponsiveParties(unresponsive_parties))?;
+        return Err(Error::UnresponsiveParties(unresponsive_parties));
     }
 
     Ok(messages)

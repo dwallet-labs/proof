@@ -1,18 +1,16 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
-use std::{collections::HashMap, marker::PhantomData};
 
 use crate::aggregation::{process_incoming_messages, DecommitmentRoundParty};
 use crate::range::bulletproofs::proof_share_round;
-use crate::Error::Aggregation;
-use crate::{aggregation, Error, Result};
+use crate::{Error, Result};
 use bulletproofs::range_proof_mpc::messages::BitCommitment;
 use bulletproofs::range_proof_mpc::{
     dealer::DealerAwaitingBitCommitments, messages::PolyCommitment,
     party::PartyAwaitingBitChallenge,
 };
-use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint};
+use crypto_bigint::rand_core::CryptoRngCore;
 use group::PartyID;
-use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {

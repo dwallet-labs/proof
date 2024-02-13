@@ -25,4 +25,4 @@ rand_core = { version = "0.6", features = ["std"] }
 bulletproofs = { git = "https://github.com/ycscaly/bulletproofs.git", features = ["cloneable"] }
 
 [features]
-test_helpers = ["dep:criterion", "dep:rand_core", "dep:rand", "dep:rstest"]
+test_helpers = ["dep:criterion", "dep:rand_core", "dep:rand", "dep:rstest", "bulletproofs/cloneable"]

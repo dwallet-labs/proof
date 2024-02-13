@@ -17,7 +17,7 @@ use crypto_bigint::{U256, U64};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::traits::Identity;
 use group::helpers::FlatMapResults;
-use group::{ristretto, PartyID};
+use group::ristretto;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::{array, iter};
@@ -132,7 +132,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         // To handle that, we pad to the next power-of-two with a witness zero and randomness zero.
         let padded_witnesses_length = witnesses.len().next_power_of_two();
         let mut iter = witnesses.into_iter();
-        let witnesses: Vec<u64> = iter::repeat_with(|| iter.next().unwrap_or_else(|| 0u64))
+        let witnesses: Vec<u64> = iter::repeat_with(|| iter.next().unwrap_or(0u64))
             .take(padded_witnesses_length)
             .collect();
 
@@ -140,7 +140,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         let commitments_randomness: Vec<curve25519_dalek::scalar::Scalar> =
             iter::repeat_with(|| {
                 iter.next()
-                    .unwrap_or_else(|| curve25519_dalek::scalar::Scalar::zero())
+                    .unwrap_or(curve25519_dalek::scalar::Scalar::zero())
             })
             .take(padded_witnesses_length)
             .collect();
@@ -227,7 +227,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         let padded_commitments_length = commitments.len().next_power_of_two();
         let mut iter = commitments.into_iter();
         let compressed_commitments: Vec<_> =
-            iter::repeat_with(|| iter.next().unwrap_or_else(|| RistrettoPoint::identity()))
+            iter::repeat_with(|| iter.next().unwrap_or(RistrettoPoint::identity()))
                 .take(padded_commitments_length)
                 .map(|commitment| commitment.compress())
                 .collect();
@@ -240,7 +240,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
 
         let mut transcript = transcript;
 
-        Ok(self.proof.verify_multiple_with_rng(
+        self.proof.verify_multiple_with_rng(
             &bulletproofs_generators,
             &commitment_generators,
             &mut transcript,
@@ -250,7 +250,7 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         ).map_err(|e| match e {
             bulletproofs::ProofError::VerificationError => Error::OutOfRange,
             _ => Error::InvalidParameters
-        })?)
+        })
     }
 }
 
@@ -420,7 +420,7 @@ impl RangeProof {
 
         let bulletproofs_aggregated_commitments = (0..number_of_witnesses)
             .map(|i| {
-                (0..number_of_parties.into())
+                (0..number_of_parties)
                     .map(|j: usize| {
                         let res = j
                             .checked_mul(number_of_witnesses)
@@ -444,19 +444,17 @@ impl RangeProof {
     }
 }
 
-#[cfg(feature = "test_helpers")]
+#[cfg(all(test, feature = "test_helpers"))]
 mod tests {
     use super::*;
     use crate::aggregation;
-    use crate::aggregation::test_helpers::{
-        commitment_round, decommitment_round, proof_share_round,
-    };
+    use crate::aggregation::test_helpers;
     use crate::aggregation::ProofAggregationRoundParty;
-    use crate::aggregation::{test_helpers, ProofShareRoundParty};
+    use crate::range::bulletproofs::tests::test_helpers::commitment_round;
     use crate::range::RangeProof;
     use bulletproofs::range_proof_mpc::party;
+    use group::PartyID;
     use group::Samplable;
-    use group::{GroupElement, PartyID};
     use rand::prelude::IteratorRandom;
     use rand::Rng;
     use rand_core::OsRng;
@@ -558,7 +556,7 @@ mod tests {
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
     ) {
-        let mut commitment_round_parties =
+        let commitment_round_parties =
             generate_commitment_round_parties(number_of_parties, batch_size);
 
         let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
@@ -585,10 +583,10 @@ mod tests {
             let mut malicious_commitments = commitments.get(&party_id).unwrap().clone();
 
             // Just out of range by 1.
-            let mut out_of_range_witness = (U64::ONE << 32).into();
+            let out_of_range_witness = (U64::ONE << 32).into();
             let malicious_subparty = party::Party::new(
                 bulletproofs_generators.clone(),
-                commitment_generators.clone(),
+                commitment_generators,
                 out_of_range_witness,
                 curve25519_dalek::scalar::Scalar::zero(),
                 RANGE_CLAIM_BITS,
@@ -609,10 +607,10 @@ mod tests {
         }
 
         let (decommitments, proof_share_round_parties) =
-            decommitment_round(commitments, decommitment_round_parties).unwrap();
+            test_helpers::decommitment_round(commitments, decommitment_round_parties).unwrap();
 
         let (proof_shares, proof_aggregation_round_parties) =
-            proof_share_round(decommitments, proof_share_round_parties).unwrap();
+            test_helpers::proof_share_round(decommitments, proof_share_round_parties).unwrap();
 
         assert!(proof_aggregation_round_parties
             .clone()
@@ -626,7 +624,7 @@ mod tests {
                         party.aggregate_proof_shares(proof_shares.clone(), &mut OsRng);
 
                     matches!(
-                        res.err().unwrap().try_into().unwrap(),
+                        res.err().unwrap(),
                         Error::Aggregation(aggregation::Error::ProofShareVerification(parties)) if parties == malicious_parties
                     )
                 }

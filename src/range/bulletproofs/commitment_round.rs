@@ -1,8 +1,6 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
-use core::iter;
 use std::collections::HashSet;
-use std::marker::PhantomData;
 
 use super::{decommitment_round, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
 use crate::aggregation::CommitmentRoundParty;
@@ -12,10 +10,9 @@ use bulletproofs::{
     range_proof_mpc::{dealer::Dealer, messages::BitCommitment, party},
     BulletproofGens, PedersenGens,
 };
-use crypto_bigint::{rand_core::CryptoRngCore, Encoding, Uint, U256, U64};
-use group::{PartyID, Samplable};
+use crypto_bigint::{rand_core::CryptoRngCore, U256, U64};
+use group::PartyID;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
@@ -111,17 +108,16 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             .map(curve25519_dalek::scalar::Scalar::from)
             .collect();
 
-        let bulletproofs_generators =
-            BulletproofGens::new(RANGE_CLAIM_BITS, number_of_parties.into());
+        let bulletproofs_generators = BulletproofGens::new(RANGE_CLAIM_BITS, number_of_parties);
 
         let commitment_generators = PedersenGens::default();
 
         let dealer_awaiting_bit_commitments = Dealer::new(
             bulletproofs_generators.clone(),
-            commitment_generators.clone(),
+            commitment_generators,
             self.transcript,
             RANGE_CLAIM_BITS,
-            number_of_parties.into(),
+            number_of_parties,
         )
         .map_err(|_| Error::InvalidParameters)?;
 
@@ -131,7 +127,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             .map(|(witness, commitment_randomness)| {
                 party::Party::new(
                     bulletproofs_generators.clone(),
-                    commitment_generators.clone(),
+                    commitment_generators,
                     witness,
                     commitment_randomness,
                     RANGE_CLAIM_BITS,
