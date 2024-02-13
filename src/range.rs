@@ -101,6 +101,91 @@ pub type AggregationOutput<
     >,
 );
 
+/// The commitment round party of the range proof aggregation protocol.
+pub type CommitmentRoundParty<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <RangeProof as AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>>::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS>;
+
+/// The commitment of the range proof aggregation protocol.
+pub type Commitment<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <CommitmentRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::CommitmentRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::Commitment;
+
+/// The decommitment round party of the range proof aggregation protocol.
+pub type DecommitmentRoundParty<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <CommitmentRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::CommitmentRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::DecommitmentRoundParty;
+
+/// The decommitment of the range proof aggregation protocol.
+pub type Decommitment<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <DecommitmentRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::DecommitmentRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::Decommitment;
+
+/// The proof share round party of the range proof aggregation protocol.
+pub type ProofShareRoundParty<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <DecommitmentRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::DecommitmentRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::ProofShareRoundParty;
+
+/// The proof share of the range proof aggregation protocol.
+pub type ProofShare<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <ProofShareRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::ProofShareRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::ProofShare;
+
+/// The proof aggregation round party of the range proof aggregation protocol.
+pub type ProofAggregationRoundParty<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <ProofShareRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::ProofShareRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::ProofAggregationRoundParty;
+
 pub trait PublicParametersAccessors<
     'a,
     const NUM_RANGE_CLAIMS: usize,
