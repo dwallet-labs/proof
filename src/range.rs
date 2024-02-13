@@ -108,6 +108,19 @@ pub type CommitmentRoundParty<
     RangeProof,
 > = <RangeProof as AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>>::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS>;
 
+/// The decommitment round party of the range proof aggregation protocol.
+pub type AggregationError<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = <CommitmentRoundParty<
+    NUM_RANGE_CLAIMS,
+    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+    RangeProof,
+> as aggregation::CommitmentRoundParty<
+    AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>,
+>>::Error;
+
 /// The commitment of the range proof aggregation protocol.
 pub type Commitment<
     const NUM_RANGE_CLAIMS: usize,

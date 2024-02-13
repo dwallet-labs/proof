@@ -55,7 +55,11 @@ pub trait CommitmentRoundParty<Output>: Sized {
     type Commitment: Serialize + for<'a> Deserialize<'a> + Clone;
 
     /// The round following the commitment round.
-    type DecommitmentRoundParty: DecommitmentRoundParty<Output, Commitment = Self::Commitment>;
+    type DecommitmentRoundParty: DecommitmentRoundParty<
+        Output,
+        Error = Self::Error,
+        Commitment = Self::Commitment,
+    >;
 
     /// The commitment round of the proof aggregation protocol.
     /// Receives `self` and not `&self`, to enforce [`Self::DecommitmentRoundParty`] can be
@@ -76,7 +80,11 @@ pub trait DecommitmentRoundParty<Output>: Sized {
     /// The output of the decommitment round.
     type Decommitment: Serialize + for<'a> Deserialize<'a> + Clone;
     /// The round following the decommitment round.
-    type ProofShareRoundParty: ProofShareRoundParty<Output, Decommitment = Self::Decommitment>;
+    type ProofShareRoundParty: ProofShareRoundParty<
+        Output,
+        Error = Self::Error,
+        Decommitment = Self::Decommitment,
+    >;
 
     /// The decommitment round of the proof aggregation protocol.
     /// Receives `self` and not `&self`, to enforce [`Self::ProofShareRoundParty`] can be
@@ -101,6 +109,7 @@ pub trait ProofShareRoundParty<Output>: Sized {
     /// The round following the proof share round.
     type ProofAggregationRoundParty: ProofAggregationRoundParty<
         Output,
+        Error = Self::Error,
         ProofShare = Self::ProofShare,
     >;
 
