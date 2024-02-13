@@ -76,7 +76,7 @@ pub trait AggregatableRangeProof<
     type AggregationCommitmentRoundParty<const NUM_RANGE_CLAIMS: usize>: aggregation::CommitmentRoundParty<AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, Self>>;
 
     /// Initiate a new proof aggregation session, by returning its commitment round party instance.
-    fn new_enhanced_session<const NUM_RANGE_CLAIMS: usize>(party_id: PartyID,
+    fn new_session<const NUM_RANGE_CLAIMS: usize>(party_id: PartyID,
                                                            provers: HashSet<PartyID>, initial_transcript: Transcript, public_parameters: &Self::PublicParameters<NUM_RANGE_CLAIMS>,
                                                            witnesses: Vec<CommitmentSchemeMessageSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,
                                                            commitments_randomness: Vec<CommitmentSchemeRandomnessSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,) -> Self::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS>;

@@ -262,7 +262,7 @@ impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for Ra
     type AggregationCommitmentRoundParty<const NUM_RANGE_CLAIMS: usize> =
         commitment_round::Party<NUM_RANGE_CLAIMS>;
 
-    fn new_enhanced_session<const NUM_RANGE_CLAIMS: usize>(
+    fn new_session<const NUM_RANGE_CLAIMS: usize>(
         party_id: PartyID,
         provers: HashSet<PartyID>,
         initial_transcript: Transcript,
