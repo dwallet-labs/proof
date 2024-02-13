@@ -19,7 +19,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub party_id: PartyID,
     // The set of parties ${P_i}$ participating in the proof aggregation protocol.
     pub(super) provers: HashSet<PartyID>,
-    pub transcript: Transcript,
+    pub initial_transcript: Transcript,
     pub witnesses: Vec<
         commitment::MessageSpaceGroupElement<
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -115,7 +115,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         let dealer_awaiting_bit_commitments = Dealer::new(
             bulletproofs_generators.clone(),
             commitment_generators,
-            self.transcript,
+            self.initial_transcript,
             RANGE_CLAIM_BITS,
             number_of_parties,
         )

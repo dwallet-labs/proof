@@ -3,11 +3,13 @@
 
 pub mod bulletproofs;
 
+use std::collections::HashSet;
 use std::fmt::Debug;
 
+use crate::aggregation;
 use commitment::{GroupsPublicParametersAccessors, HomomorphicCommitmentScheme};
 use crypto_bigint::rand_core::CryptoRngCore;
-use group::{self_product, NumbersGroupElement};
+use group::{self_product, NumbersGroupElement, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +66,40 @@ pub trait RangeProof<
         rng: &mut impl CryptoRngCore,
     ) -> crate::Result<()>;
 }
+
+/// An aggregatable range proof over `Self::CommitmentScheme`, capable of proving an aggregated range proof over `Self::RANGE_CLAIM_BITS` bits.
+pub trait AggregatableRangeProof<
+    // The commitment scheme's message space scalar size in limbs
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+>: RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> {
+    /// The commitment round party of the range proof aggregation protocol.
+    type AggregationCommitmentRoundParty<const NUM_RANGE_CLAIMS: usize>: aggregation::CommitmentRoundParty<AggregationOutput<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, Self>>;
+
+    /// Initiate a new proof aggregation session, by returning its commitment round party instance.
+    fn new_enhanced_session<const NUM_RANGE_CLAIMS: usize>(party_id: PartyID,
+                                                           provers: HashSet<PartyID>, initial_transcript: Transcript, public_parameters: &Self::PublicParameters<NUM_RANGE_CLAIMS>,
+                                                           witnesses: Vec<CommitmentSchemeMessageSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,
+                                                           commitments_randomness: Vec<CommitmentSchemeRandomnessSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,) -> Self::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS>;
+}
+
+/// The output of the range proof aggregation protocol.
+pub type AggregationOutput<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof,
+> = (
+    RangeProof,
+    Vec<
+        commitment::CommitmentSpaceGroupElement<
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            CommitmentScheme<
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                NUM_RANGE_CLAIMS,
+                RangeProof,
+            >,
+        >,
+    >,
+);
 
 pub trait PublicParametersAccessors<
     'a,

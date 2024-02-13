@@ -8,7 +8,10 @@ pub mod proof_share_round;
 
 pub use proof_aggregation_round::Output;
 
-use crate::range::{CommitmentScheme, CommitmentSchemeCommitmentSpaceGroupElement};
+use crate::range::{
+    AggregatableRangeProof, CommitmentScheme, CommitmentSchemeCommitmentSpaceGroupElement,
+    CommitmentSchemeMessageSpaceGroupElement, CommitmentSchemeRandomnessSpaceGroupElement,
+};
 use crate::{Error, Result};
 use bulletproofs::{BulletproofGens, PedersenGens};
 use commitment::{MultiPedersen, Pedersen};
@@ -17,9 +20,10 @@ use crypto_bigint::{U256, U64};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::traits::Identity;
 use group::helpers::FlatMapResults;
-use group::ristretto;
+use group::{ristretto, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::{array, iter};
 
 /// A wrapper around `bulletproofs::RangeProof` that optionally adds the `aggregation_commitments`
@@ -251,6 +255,40 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
             bulletproofs::ProofError::VerificationError => Error::OutOfRange,
             _ => Error::InvalidParameters
         })
+    }
+}
+
+impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangeProof {
+    type AggregationCommitmentRoundParty<const NUM_RANGE_CLAIMS: usize> =
+        commitment_round::Party<NUM_RANGE_CLAIMS>;
+
+    fn new_enhanced_session<const NUM_RANGE_CLAIMS: usize>(
+        party_id: PartyID,
+        provers: HashSet<PartyID>,
+        initial_transcript: Transcript,
+        _public_parameters: &Self::PublicParameters<NUM_RANGE_CLAIMS>,
+        witnesses: Vec<
+            CommitmentSchemeMessageSpaceGroupElement<
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                NUM_RANGE_CLAIMS,
+                Self,
+            >,
+        >,
+        commitments_randomness: Vec<
+            CommitmentSchemeRandomnessSpaceGroupElement<
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                NUM_RANGE_CLAIMS,
+                Self,
+            >,
+        >,
+    ) -> Self::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS> {
+        commitment_round::Party {
+            party_id,
+            provers,
+            initial_transcript,
+            witnesses,
+            commitments_randomness,
+        }
     }
 }
 
@@ -503,7 +541,7 @@ mod tests {
                     commitment_round::Party {
                         party_id,
                         provers: provers.clone(),
-                        transcript,
+                        initial_transcript: transcript,
                         witnesses,
                         commitments_randomness,
                     },
