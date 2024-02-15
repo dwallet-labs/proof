@@ -3,7 +3,7 @@
 
 pub mod bulletproofs;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use crate::aggregation;
@@ -80,6 +80,9 @@ pub trait AggregatableRangeProof<
                                                            provers: HashSet<PartyID>, initial_transcript: Transcript, public_parameters: &Self::PublicParameters<NUM_RANGE_CLAIMS>,
                                                            witnesses: Vec<CommitmentSchemeMessageSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,
                                                            commitments_randomness: Vec<CommitmentSchemeRandomnessSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>,) -> Self::AggregationCommitmentRoundParty<NUM_RANGE_CLAIMS>;
+
+    /// Extracts the individual commitments made by each party (used for identifiable abort).
+    fn commitments<const NUM_RANGE_CLAIMS: usize>(proof_aggregation_round_party: &ProofAggregationRoundParty<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, Self>, batch_size: usize) -> crate::Result<HashMap<PartyID, Vec<CommitmentSchemeCommitmentSpaceGroupElement<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS, Self>>>>;
 }
 
 /// The output of the range proof aggregation protocol.

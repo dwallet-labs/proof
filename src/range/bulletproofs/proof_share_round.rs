@@ -10,7 +10,7 @@ use bulletproofs::range_proof_mpc::{
     party::PartyAwaitingPolyChallenge,
 };
 use crypto_bigint::rand_core::CryptoRngCore;
-use group::PartyID;
+use group::{ristretto, PartyID};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
@@ -19,6 +19,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_poly_commitments: DealerAwaitingPolyCommitments,
     pub(super) parties_awaiting_poly_challenge: Vec<PartyAwaitingPolyChallenge>,
+    pub(super) commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE_CLAIMS>>
@@ -70,6 +71,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
             provers: self.provers,
             number_of_witnesses: self.number_of_witnesses,
             dealer_awaiting_proof_shares,
+            commitments: self.commitments,
         };
 
         Ok((proof_shares, proof_aggregation_round_party))

@@ -11,6 +11,7 @@ pub use proof_aggregation_round::Output;
 use crate::range::{
     AggregatableRangeProof, CommitmentScheme, CommitmentSchemeCommitmentSpaceGroupElement,
     CommitmentSchemeMessageSpaceGroupElement, CommitmentSchemeRandomnessSpaceGroupElement,
+    ProofAggregationRoundParty,
 };
 use crate::{Error, Result};
 use bulletproofs::{BulletproofGens, PedersenGens};
@@ -23,7 +24,7 @@ use group::helpers::FlatMapResults;
 use group::{ristretto, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::{array, iter};
 
 /// A wrapper around `bulletproofs::RangeProof` that optionally adds the `aggregation_commitments`
@@ -290,6 +291,52 @@ impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for Ra
             commitments_randomness,
         }
     }
+
+    fn commitments<const NUM_RANGE_CLAIMS: usize>(
+        proof_aggregation_round_party: &ProofAggregationRoundParty<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            Self,
+        >,
+        batch_size: usize,
+    ) -> Result<
+        HashMap<
+            PartyID,
+            Vec<
+                CommitmentSchemeCommitmentSpaceGroupElement<
+                    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                    NUM_RANGE_CLAIMS,
+                    Self,
+                >,
+            >,
+        >,
+    > {
+        proof_aggregation_round_party
+            .commitments
+            .clone()
+            .into_iter()
+            .map(|(party_id, commitments)| {
+                let mut commitments_iter = commitments.into_iter();
+
+                // TODO: dry this
+                iter::repeat_with(|| {
+                    // TODO: make sure we/bulletproofs check that the commitemnts vector is of the right size (though it should be).
+                    array::from_fn(|_| commitments_iter.next().ok_or(Error::InternalError))
+                        .flat_map_results()
+                        .map(
+                            CommitmentSchemeCommitmentSpaceGroupElement::<
+                                { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+                                NUM_RANGE_CLAIMS,
+                                Self,
+                            >::from,
+                        )
+                })
+                .take(batch_size)
+                .collect::<Result<Vec<_>>>()
+                .map(|unflattened_commitments| (party_id, unflattened_commitments))
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -304,6 +351,7 @@ pub struct PublicParameters<const NUM_RANGE_CLAIMS: usize> {
         >,
     >,
     pub number_of_range_claims: usize,
+    // TODO: add bulletproofs_generators, pc_gens
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> Default for PublicParameters<NUM_RANGE_CLAIMS> {
@@ -667,5 +715,7 @@ mod tests {
                     )
                 }
             }));
+
+        // Try to generate a 64-bit bp and check it doesn't pass
     }
 }

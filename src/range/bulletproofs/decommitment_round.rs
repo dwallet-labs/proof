@@ -39,6 +39,17 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         let commitments =
             process_incoming_messages(self.party_id, self.provers.clone(), commitments, false)?;
 
+        let individual_commitments: Result<HashMap<PartyID, Vec<_>>> = commitments
+            .iter()
+            .map(|(party_id, bitcommitments)| {
+                bitcommitments
+                    .iter()
+                    .map(|vc| Ok(vc.V_j.try_into()?))
+                    .collect::<Result<Vec<_>>>()
+                    .map(|commitments| (*party_id, commitments))
+            })
+            .collect();
+
         let mut bit_commitments: Vec<(_, _)> = commitments.into_iter().collect();
 
         bit_commitments.sort_by_key(|(party_id, _)| *party_id);
@@ -65,6 +76,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             number_of_witnesses: self.number_of_witnesses,
             dealer_awaiting_poly_commitments,
             parties_awaiting_poly_challenge,
+            commitments: individual_commitments?,
         };
 
         Ok((poly_commitments, third_round_party))

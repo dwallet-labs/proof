@@ -5,7 +5,7 @@ use super::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS;
 use bulletproofs::range_proof_mpc::messages::ProofShare;
 use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
 use crypto_bigint::rand_core::CryptoRngCore;
-use group::PartyID;
+use group::{ristretto, PartyID};
 
 use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
 use crate::range::CommitmentScheme;
@@ -17,6 +17,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) provers: HashSet<PartyID>,
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
+    pub(super) commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
 }
 
 pub type Output<const NUM_RANGE_CLAIMS: usize> = (
