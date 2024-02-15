@@ -17,7 +17,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) provers: HashSet<PartyID>,
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
-    pub(super) commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
+    pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
 }
 
 pub type Output<const NUM_RANGE_CLAIMS: usize> = (

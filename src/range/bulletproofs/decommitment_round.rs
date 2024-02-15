@@ -39,7 +39,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         let commitments =
             process_incoming_messages(self.party_id, self.provers.clone(), commitments, false)?;
 
-        let individual_commitments: Result<HashMap<PartyID, Vec<_>>> = commitments
+        let individual_commitments = commitments
             .iter()
             .map(|(party_id, bitcommitments)| {
                 bitcommitments
@@ -48,7 +48,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
                     .collect::<Result<Vec<_>>>()
                     .map(|commitments| (*party_id, commitments))
             })
-            .collect();
+            .collect::<Result<_>>()?;
 
         let mut bit_commitments: Vec<(_, _)> = commitments.into_iter().collect();
 
@@ -76,7 +76,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             number_of_witnesses: self.number_of_witnesses,
             dealer_awaiting_poly_commitments,
             parties_awaiting_poly_challenge,
-            commitments: individual_commitments?,
+            individual_commitments,
         };
 
         Ok((poly_commitments, third_round_party))

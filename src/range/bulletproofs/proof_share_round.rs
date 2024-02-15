@@ -19,7 +19,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_poly_commitments: DealerAwaitingPolyCommitments,
     pub(super) parties_awaiting_poly_challenge: Vec<PartyAwaitingPolyChallenge>,
-    pub(super) commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
+    pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE_CLAIMS>>
@@ -71,7 +71,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
             provers: self.provers,
             number_of_witnesses: self.number_of_witnesses,
             dealer_awaiting_proof_shares,
-            commitments: self.commitments,
+            individual_commitments: self.individual_commitments,
         };
 
         Ok((proof_shares, proof_aggregation_round_party))

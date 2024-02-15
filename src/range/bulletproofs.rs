@@ -292,7 +292,7 @@ impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for Ra
         }
     }
 
-    fn commitments<const NUM_RANGE_CLAIMS: usize>(
+    fn individual_commitments<const NUM_RANGE_CLAIMS: usize>(
         proof_aggregation_round_party: &ProofAggregationRoundParty<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -312,7 +312,7 @@ impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for Ra
         >,
     > {
         proof_aggregation_round_party
-            .commitments
+            .individual_commitments
             .clone()
             .into_iter()
             .map(|(party_id, commitments)| {
