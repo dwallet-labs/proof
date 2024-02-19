@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::iter;
+use std::ops::Neg;
 
-use super::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS;
-use bulletproofs::range_proof_mpc::messages::ProofShare;
+use super::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
+use bulletproofs::range_proof_mpc::messages::{BitChallenge, PolyCommitment, ProofShare};
 use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
 use crypto_bigint::rand_core::CryptoRngCore;
+use curve25519_dalek::ristretto::RistrettoPoint;
 use group::{ristretto, PartyID};
 
 use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
@@ -18,6 +21,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
     pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
+    pub(super) bit_challenge: BitChallenge,
 }
 
 pub type Output<const NUM_RANGE_CLAIMS: usize> = (
@@ -56,6 +60,17 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         let proof_shares: Vec<_> = proof_shares
             .into_iter()
             .flat_map(|(_, proof_shares)| proof_shares)
+            .collect();
+
+        // TODO: checked next power of two?
+        let padded_proof_shares_length = proof_shares.len().next_power_of_two();
+
+        // TODO: right length?
+        let l_vec = iter::repeat(self.bit_challenge.z.neg()).take(RANGE_CLAIM_BITS);
+
+        let mut iter = proof_shares.into_iter();
+        let proof_shares: Vec<_> = iter::repeat_with(|| iter.next().unwrap_or({ ProofShare {} }))
+            .take(padded_proof_shares_length)
             .collect();
 
         // TODO: should we abort identifiably in the case of decompression error?

@@ -19,8 +19,8 @@ use commitment::{MultiPedersen, Pedersen};
 use crypto_bigint::rand_core::CryptoRngCore;
 use crypto_bigint::{U256, U64};
 use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::traits::Identity;
 use group::helpers::FlatMapResults;
+use group::GroupElement as _;
 use group::{ristretto, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -207,11 +207,23 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let commitments = if self.aggregation_commitments.is_empty() {
-            commitments
+            let commitments: Vec<_> = commitments
                 .into_iter()
                 .flat_map(|multicommitment| {
                     <[ristretto::GroupElement; NUM_RANGE_CLAIMS]>::from(multicommitment)
                 })
+                .collect();
+
+            // TODO: checked next power of two?
+            let padded_commitments_length = commitments.len().next_power_of_two();
+            let identity = commitments
+                .first()
+                .ok_or(Error::InvalidParameters)?
+                .neutral();
+            let mut iter = commitments.into_iter();
+
+            iter::repeat_with(|| iter.next().unwrap_or(identity))
+                .take(padded_commitments_length)
                 .collect()
         } else {
             if commitments
@@ -227,15 +239,11 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
             self.aggregation_commitments.clone()
         };
 
-        let commitments: Vec<_> = commitments.into_iter().map(RistrettoPoint::from).collect();
-
-        let padded_commitments_length = commitments.len().next_power_of_two();
-        let mut iter = commitments.into_iter();
-        let compressed_commitments: Vec<_> =
-            iter::repeat_with(|| iter.next().unwrap_or(RistrettoPoint::identity()))
-                .take(padded_commitments_length)
-                .map(|commitment| commitment.compress())
-                .collect();
+        let compressed_commitments: Vec<_> = commitments
+            .into_iter()
+            .map(RistrettoPoint::from)
+            .map(|point| point.compress())
+            .collect();
 
         let bulletproofs_generators = BulletproofGens::new(
             <Self as super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>>::RANGE_CLAIM_BITS,
@@ -480,6 +488,11 @@ impl RangeProof {
             >,
         >,
     > {
+        // TODO: but what if NUM_RANGE_CLAIMS not a power of two?
+        if !aggregation_commitments.len().is_power_of_two() {
+            return Err(Error::InvalidParameters);
+        }
+
         let mut bulletproofs_commitments_iter = aggregation_commitments.into_iter();
 
         let number_of_unflattened_commitments = number_of_witnesses

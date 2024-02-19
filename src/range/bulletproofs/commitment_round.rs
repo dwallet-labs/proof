@@ -1,6 +1,7 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 use std::collections::HashSet;
+use std::iter;
 
 use super::{decommitment_round, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
 use crate::aggregation::CommitmentRoundParty;
@@ -85,19 +86,23 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             return Err(Error::InvalidParameters)?;
         }
 
-        let witnesses: Vec<u64> = witnesses
-            .into_iter()
-            .map(|witness| U64::from(&witness).into())
-            .collect();
-
-        let number_of_parties = self.provers.len();
+        // TODO: checked next power of two?
+        let number_of_padded_witnesses = witnesses.len().next_power_of_two();
+        let mut iter = witnesses.into_iter();
+        let witnesses: Vec<u64> = iter::repeat_with(|| {
+            iter.next()
+                .map(|witness| U64::from(&witness).into())
+                .unwrap_or(0u64)
+        })
+        .take(number_of_padded_witnesses)
+        .collect();
         let number_of_witnesses = witnesses.len();
 
-        if !number_of_witnesses.is_power_of_two() || !number_of_parties.is_power_of_two() {
-            return Err(Error::InvalidParameters);
-        }
-
-        let number_of_parties = number_of_parties
+        // TODO: checked next power of two?
+        let number_of_parties = self
+            .provers
+            .len()
+            .next_power_of_two()
             .checked_mul(number_of_witnesses)
             .ok_or(Error::InternalError)?;
 
@@ -163,6 +168,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             number_of_witnesses: batch_size,
             dealer_awaiting_bit_commitments,
             parties_awaiting_bit_challenge,
+            bulletproofs_generators
         };
 
         Ok((bit_commitments, decommitment_round_party))
