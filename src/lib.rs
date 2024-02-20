@@ -1,7 +1,7 @@
 // Author: dWallet Labs, LTD.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-pub use range::{AggregatableRangeProof, RangeProof};
+pub use range::RangeProof;
 pub use transcript_protocol::TranscriptProtocol;
 mod transcript_protocol;
 
