@@ -5,7 +5,7 @@ use std::iter;
 use crate::aggregation::{process_incoming_messages, ProofShareRoundParty};
 use crate::range::bulletproofs::{proof_aggregation_round, RANGE_CLAIM_BITS};
 use crate::{Error, Result};
-use bulletproofs::range_proof_mpc::messages::{BitCommitment, ProofShare};
+use bulletproofs::range_proof_mpc::messages::{BitChallenge, BitCommitment, ProofShare};
 use bulletproofs::range_proof_mpc::{
     dealer::DealerAwaitingPolyCommitments, messages::PolyCommitment,
     party::PartyAwaitingPolyChallenge,
@@ -23,6 +23,7 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) dealer_awaiting_poly_commitments: DealerAwaitingPolyCommitments,
     pub(super) parties_awaiting_poly_challenge: Vec<PartyAwaitingPolyChallenge>,
     pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
+    pub(super) bit_challenge: BitChallenge,
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE_CLAIMS>>
@@ -58,12 +59,14 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
 
         let mut iter = poly_commitments.into_iter();
         let poly_commitments: Vec<_> = iter::repeat_with(|| {
-            iter.next().unwrap_or({
+            if let Some(poly_commitment) = iter.next() {
+                poly_commitment
+            } else {
                 PolyCommitment {
                     T_1_j: RistrettoPoint::identity(),
                     T_2_j: RistrettoPoint::identity(),
                 }
-            })
+            }
         })
         .take(padded_poly_commitments_length)
         .collect();
@@ -90,6 +93,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
             number_of_witnesses: self.number_of_witnesses,
             dealer_awaiting_proof_shares,
             individual_commitments: self.individual_commitments,
+            bit_challenge: self.bit_challenge,
         };
 
         Ok((proof_shares, proof_aggregation_round_party))

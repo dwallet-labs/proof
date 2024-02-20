@@ -71,23 +71,25 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         // TODO: checked next power of two?
         let padded_bit_commitments_length = bit_commitments.len().next_power_of_two();
 
+        let mut j = bit_commitments.len();
         let mut iter = bit_commitments.into_iter();
-        let mut j = 0;
         let bit_commitments: Vec<_> = iter::repeat_with(|| {
-            let bit_commitment = iter.next().unwrap_or({
+            if let Some(bit_commitment) = iter.next() {
+                bit_commitment
+            } else {
                 // $ A_j =  (\pi_{i=0..n-1}{h_{(j-1)*n+i}})^{-1} $
                 let H = self.bulletproofs_generators.share(j).H(RANGE_CLAIM_BITS);
                 // TODO: safe to unwrap here?
                 let A_j = H.copied().reduce(|a, b| a + b).map(|a| a.neg()).unwrap();
 
-                BitCommitment {
+                let bit_commitment = BitCommitment {
                     V_j: RistrettoPoint::identity().compress(),
                     A_j,
                     S_j: RistrettoPoint::identity(),
-                }
-            });
-            j += 1;
-            bit_commitment
+                };
+                j += 1;
+                bit_commitment
+            }
         })
         .take(padded_bit_commitments_length)
         .collect();

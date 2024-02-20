@@ -4,10 +4,15 @@ use std::iter;
 use std::ops::Neg;
 
 use super::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
-use bulletproofs::range_proof_mpc::messages::{BitChallenge, PolyCommitment, ProofShare};
+use bulletproofs::exp_iter;
+use bulletproofs::range_proof_mpc::messages::{
+    BitChallenge, BitCommitment, PolyCommitment, ProofShare,
+};
 use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
 use crypto_bigint::rand_core::CryptoRngCore;
 use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::scalar;
+use curve25519_dalek::scalar::Scalar;
 use group::{ristretto, PartyID};
 
 use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
@@ -65,13 +70,57 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         // TODO: checked next power of two?
         let padded_proof_shares_length = proof_shares.len().next_power_of_two();
 
-        // TODO: right length?
-        let l_vec = iter::repeat(self.bit_challenge.z.neg()).take(RANGE_CLAIM_BITS);
-
-        let mut iter = proof_shares.into_iter();
-        let proof_shares: Vec<_> = iter::repeat_with(|| iter.next().unwrap_or({ ProofShare {} }))
-            .take(padded_proof_shares_length)
+        let l_vec: Vec<_> = iter::repeat(self.bit_challenge.z.neg())
+            .take(RANGE_CLAIM_BITS)
             .collect();
+
+        let mut j = proof_shares.len();
+        let mut iter = proof_shares.into_iter();
+        let powers_of_z: Vec<Scalar> = exp_iter(self.bit_challenge.z)
+            .take(padded_proof_shares_length + 2)
+            .collect();
+        let powers_of_y: Vec<Scalar> = exp_iter(self.bit_challenge.y)
+            .take(padded_proof_shares_length * RANGE_CLAIM_BITS)
+            .collect();
+        let powers_of_2: Vec<Scalar> = exp_iter(Scalar::from(2u64))
+            .take(RANGE_CLAIM_BITS)
+            .collect();
+
+        let proof_shares: Vec<_> = iter::repeat_with(|| {
+            if let Some(proof_share) = iter.next() {
+                proof_share
+            } else {
+                // $$ \vec{r}_j = ((z-1) y^{n\cdot j+0}+z^{2+j}2^0,\ldots,(z-1) y^{n\cdot j+n-1}+z^{2+j}2^{n-1}) $$
+                let r_vec: Vec<_> = (0..RANGE_CLAIM_BITS)
+                    .map(|i| {
+                        ((self.bit_challenge.z - Scalar::from(1u64))
+                            * powers_of_y[j * RANGE_CLAIM_BITS + i])
+                            + (powers_of_z[j + 2] * powers_of_2[i])
+                    })
+                    .collect();
+
+                let t_x = r_vec
+                    .clone()
+                    .into_iter()
+                    .zip(l_vec.clone())
+                    .map(|(a, b)| a * b)
+                    .reduce(|a, b| a + b)
+                    .unwrap();
+
+                let proof_share = ProofShare {
+                    e_blinding: Scalar::zero(),
+                    t_x_blinding: Scalar::zero(),
+                    r_vec,
+                    l_vec: l_vec.clone(),
+                    t_x,
+                };
+
+                j += 1;
+                proof_share
+            }
+        })
+        .take(padded_proof_shares_length)
+        .collect();
 
         // TODO: should we abort identifiably in the case of decompression error?
         let bulletproofs_commitments: Vec<_> = self

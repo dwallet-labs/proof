@@ -614,7 +614,7 @@ mod tests {
     #[rstest]
     #[case(2, 1)]
     #[case(2, 4)]
-    #[case(4, 8)]
+    #[case(4, 6)]
     fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
         let commitment_round_parties =
             generate_commitment_round_parties(number_of_parties, batch_size);
