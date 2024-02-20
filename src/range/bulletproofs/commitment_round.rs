@@ -50,11 +50,6 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
     type Commitment = Vec<BitCommitment>;
     type DecommitmentRoundParty = decommitment_round::Party<NUM_RANGE_CLAIMS>;
 
-    /// TODO: fix this
-    /// Due to a limitation in Bulletproofs, assumes both the number of parties and the number of
-    /// witnesses are powers of 2. If one needs a non-power-of-two, pad to the
-    /// `next_power_of_two` by creating additional parties with zero-valued witnesses and having
-    /// every party emulate those locally.
     fn commit_statements_and_statement_mask(
         self,
         rng: &mut impl CryptoRngCore,
@@ -75,7 +70,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             .flat_map(<[_; NUM_RANGE_CLAIMS]>::from)
             .collect();
 
-        // Buletproofs think of range claims a numbers and not scalars.
+        // Buletproofs think of range claims as numbers and not scalars.
         // Transition, whilst ensuring they are in range.
         let witnesses: Vec<_> = witnesses.into_iter().map(U256::from).collect();
 
@@ -86,8 +81,10 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             return Err(Error::InvalidParameters)?;
         }
 
-        // TODO: checked next power of two?
-        let number_of_padded_witnesses = witnesses.len().next_power_of_two();
+        let number_of_padded_witnesses = witnesses
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
         let mut iter = witnesses.into_iter();
         let witnesses: Vec<u64> = iter::repeat_with(|| {
             iter.next()
@@ -98,11 +95,11 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         .collect();
         let number_of_witnesses = witnesses.len();
 
-        // TODO: checked next power of two?
         let number_of_parties = self
             .provers
             .len()
-            .next_power_of_two()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?
             .checked_mul(number_of_witnesses)
             .ok_or(Error::InternalError)?;
 
@@ -141,13 +138,16 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             })
             .collect::<Result<Vec<_>>>()?;
 
-        // TODO: this assumes party IDs are 1 to n right?
+        let mut sorted_provers: Vec<_> = self.provers.iter().copied().collect();
+        sorted_provers.sort();
+
         let (parties_awaiting_bit_challenge, bit_commitments): (Vec<_>, Vec<_>) = parties
             .into_iter()
             .enumerate()
             .map(|(i, party): (usize, party::PartyAwaitingPosition)| {
-                usize::from(self.party_id)
-                    .checked_sub(1)
+                sorted_provers
+                    .iter()
+                    .position(|x| x == &self.party_id)
                     .and_then(|position| position.checked_mul(NUM_RANGE_CLAIMS))
                     .and_then(|position| position.checked_mul(batch_size))
                     .and_then(|position| position.checked_add(i))
@@ -165,10 +165,12 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         let decommitment_round_party = decommitment_round::Party {
             party_id: self.party_id,
             provers: self.provers,
-            number_of_witnesses: batch_size,
+            sorted_provers,
+            batch_size,
+            number_of_witnesses,
             dealer_awaiting_bit_commitments,
             parties_awaiting_bit_challenge,
-            bulletproofs_generators
+            bulletproofs_generators,
         };
 
         Ok((bit_commitments, decommitment_round_party))

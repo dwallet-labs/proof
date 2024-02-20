@@ -135,7 +135,10 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
 
         // Bulletproofs' API supports power-of-two-sized batching exclusively.
         // To handle that, we pad to the next power-of-two with a witness zero and randomness zero.
-        let padded_witnesses_length = witnesses.len().next_power_of_two();
+        let padded_witnesses_length = witnesses
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
         let mut iter = witnesses.into_iter();
         let witnesses: Vec<u64> = iter::repeat_with(|| iter.next().unwrap_or(0u64))
             .take(padded_witnesses_length)
@@ -214,8 +217,10 @@ impl super::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for RangePr
                 })
                 .collect();
 
-            // TODO: checked next power of two?
-            let padded_commitments_length = commitments.len().next_power_of_two();
+            let padded_commitments_length = commitments
+                .len()
+                .checked_next_power_of_two()
+                .ok_or(Error::InvalidParameters)?;
             let identity = commitments
                 .first()
                 .ok_or(Error::InvalidParameters)?
@@ -326,9 +331,7 @@ impl AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> for Ra
             .map(|(party_id, commitments)| {
                 let mut commitments_iter = commitments.into_iter();
 
-                // TODO: dry this
                 iter::repeat_with(|| {
-                    // TODO: make sure we/bulletproofs check that the commitemnts vector is of the right size (though it should be).
                     array::from_fn(|_| commitments_iter.next().ok_or(Error::InternalError))
                         .flat_map_results()
                         .map(
@@ -359,7 +362,6 @@ pub struct PublicParameters<const NUM_RANGE_CLAIMS: usize> {
         >,
     >,
     pub number_of_range_claims: usize,
-    // TODO: add bulletproofs_generators, pc_gens
 }
 
 impl<const NUM_RANGE_CLAIMS: usize> Default for PublicParameters<NUM_RANGE_CLAIMS> {
@@ -488,11 +490,19 @@ impl RangeProof {
             >,
         >,
     > {
-        // TODO: but what if NUM_RANGE_CLAIMS not a power of two?
-        if !aggregation_commitments.len().is_power_of_two() {
-            return Err(Error::InvalidParameters);
-        }
+        let padded_commitments_length = aggregation_commitments
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
+        let identity = aggregation_commitments
+            .first()
+            .ok_or(Error::InvalidParameters)?
+            .neutral();
 
+        let mut iter = aggregation_commitments.into_iter();
+        let aggregation_commitments: Vec<_> = iter::repeat_with(|| iter.next().unwrap_or(identity))
+            .take(padded_commitments_length)
+            .collect();
         let mut bulletproofs_commitments_iter = aggregation_commitments.into_iter();
 
         let number_of_unflattened_commitments = number_of_witnesses
@@ -564,21 +574,25 @@ mod tests {
 
     fn generate_commitment_round_parties(
         number_of_parties: usize,
+        threshold: usize,
         batch_size: usize,
     ) -> HashMap<PartyID, commitment_round::Party<NUM_RANGE_CLAIMS>> {
         let mut provers = HashSet::new();
-        (1..=number_of_parties).for_each(|i| {
-            let party_id: u16 = i.try_into().unwrap();
+        (1..=number_of_parties)
+            .choose_multiple(&mut OsRng, threshold)
+            .into_iter()
+            .for_each(|i| {
+                let party_id: u16 = i.try_into().unwrap();
 
-            provers.insert(party_id);
-        });
+                provers.insert(party_id);
+            });
 
         let ristretto_scalar_public_parameters = ristretto::scalar::PublicParameters::default();
 
-        (1..=number_of_parties)
+        provers
+            .clone()
+            .into_iter()
             .map(|party_id| {
-                let party_id: u16 = party_id.try_into().unwrap();
-
                 let transcript = Transcript::new("".as_bytes());
                 let witnesses = (0..batch_size)
                     .map(|_| array::from_fn(|_| U64::from(OsRng.gen::<u32>()).into()).into())
@@ -612,12 +626,16 @@ mod tests {
     }
 
     #[rstest]
-    #[case(2, 1)]
-    #[case(2, 4)]
-    #[case(4, 6)]
-    fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
+    #[case(2, 2, 1)]
+    #[case(2, 4, 4)]
+    #[case(6, 9, 2)]
+    fn aggregates(
+        #[case] number_of_parties: usize,
+        #[case] threshold: usize,
+        #[case] batch_size: usize,
+    ) {
         let commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
+            generate_commitment_round_parties(number_of_parties, threshold, batch_size);
 
         let (_, _, _, _, _, (range_proof, commitments)) =
             test_helpers::aggregates(commitment_round_parties);
@@ -634,29 +652,31 @@ mod tests {
     }
 
     #[rstest]
-    #[case(2, 1)]
-    #[case(2, 4)]
-    #[case(4, 8)]
+    #[case(2, 2, 1)]
+    #[case(2, 4, 4)]
+    #[case(6, 9, 2)]
     fn unresponsive_parties_aborts_session_identifiably(
         #[case] number_of_parties: usize,
+        #[case] threshold: usize,
         #[case] batch_size: usize,
     ) {
         let commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
+            generate_commitment_round_parties(number_of_parties, threshold, batch_size);
 
         test_helpers::unresponsive_parties_aborts_session_identifiably(commitment_round_parties);
     }
 
     #[rstest]
-    #[case(2, 1)]
-    #[case(2, 4)]
-    #[case(4, 8)]
+    #[case(2, 2, 1)]
+    #[case(2, 4, 4)]
+    #[case(6, 9, 2)]
     fn out_of_range_witness_aborts_identifiably(
         #[case] number_of_parties: usize,
+        #[case] threshold: usize,
         #[case] batch_size: usize,
     ) {
         let commitment_round_parties =
-            generate_commitment_round_parties(number_of_parties, batch_size);
+            generate_commitment_round_parties(number_of_parties, threshold, batch_size);
 
         let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
         let number_of_malicious_parties = if provers.len() == 2 { 1 } else { 2 };

@@ -1,3 +1,8 @@
+// Author: dWallet Labs, Ltd.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
+#![allow(non_snake_case)]
+
 use bulletproofs::BulletproofGens;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -6,15 +11,14 @@ use std::ops::Neg;
 
 use crate::aggregation::{process_incoming_messages, DecommitmentRoundParty};
 use crate::range::bulletproofs::{proof_share_round, RANGE_CLAIM_BITS};
-use crate::{Error, Result};
+use crate::{aggregation, Error, Result};
 use bulletproofs::range_proof_mpc::messages::BitCommitment;
 use bulletproofs::range_proof_mpc::{
     dealer::DealerAwaitingBitCommitments, messages::PolyCommitment,
     party::PartyAwaitingBitChallenge,
 };
 use crypto_bigint::rand_core::CryptoRngCore;
-use crypto_bigint::U64;
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::traits::Identity;
 use group::PartyID;
 
@@ -22,6 +26,8 @@ use group::PartyID;
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) party_id: PartyID,
     pub(super) provers: HashSet<PartyID>,
+    pub(super) sorted_provers: Vec<PartyID>,
+    pub(super) batch_size: usize,
     pub(super) number_of_witnesses: usize,
     pub(super) dealer_awaiting_bit_commitments: DealerAwaitingBitCommitments,
     pub(super) parties_awaiting_bit_challenge: Vec<PartyAwaitingBitChallenge>,
@@ -46,7 +52,18 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         let commitments =
             process_incoming_messages(self.party_id, self.provers.clone(), commitments, false)?;
 
-        // TODO: make sure that all the sizes of the vectors of commitments from each party match and is power of two.
+        let mut parties_sending_wrong_number_of_bitcommitments: Vec<PartyID> = commitments
+            .iter()
+            .filter(|(_, bitcommitments)| bitcommitments.len() != self.number_of_witnesses)
+            .map(|(party_id, _)| *party_id)
+            .collect();
+        parties_sending_wrong_number_of_bitcommitments.sort();
+
+        if !parties_sending_wrong_number_of_bitcommitments.is_empty() {
+            return Err(aggregation::Error::WrongNumberOfDecommittedStatements(
+                parties_sending_wrong_number_of_bitcommitments,
+            ))?;
+        }
 
         let individual_commitments = commitments
             .iter()
@@ -68,31 +85,33 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             .flat_map(|(_, bit_commitments)| bit_commitments)
             .collect();
 
-        // TODO: checked next power of two?
-        let padded_bit_commitments_length = bit_commitments.len().next_power_of_two();
+        let padded_bit_commitments_length = bit_commitments
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
 
         let mut j = bit_commitments.len();
         let mut iter = bit_commitments.into_iter();
-        let bit_commitments: Vec<_> = iter::repeat_with(|| {
+        let bit_commitments = iter::repeat_with(|| {
             if let Some(bit_commitment) = iter.next() {
-                bit_commitment
+                Ok(bit_commitment)
             } else {
                 // $ A_j =  (\pi_{i=0..n-1}{h_{(j-1)*n+i}})^{-1} $
                 let H = self.bulletproofs_generators.share(j).H(RANGE_CLAIM_BITS);
-                // TODO: safe to unwrap here?
-                let A_j = H.copied().reduce(|a, b| a + b).map(|a| a.neg()).unwrap();
-
-                let bit_commitment = BitCommitment {
-                    V_j: RistrettoPoint::identity().compress(),
-                    A_j,
-                    S_j: RistrettoPoint::identity(),
-                };
                 j += 1;
-                bit_commitment
+                H.copied()
+                    .reduce(|a, b| a + b)
+                    .map(|a| a.neg())
+                    .map(|A_j| BitCommitment {
+                        V_j: RistrettoPoint::identity().compress(),
+                        A_j,
+                        S_j: RistrettoPoint::identity(),
+                    })
+                    .ok_or(Error::InternalError)
             }
         })
         .take(padded_bit_commitments_length)
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
         let (dealer_awaiting_poly_commitments, bit_challenge) = self
             .dealer_awaiting_bit_commitments
@@ -108,7 +127,8 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         let third_round_party = proof_share_round::Party {
             party_id: self.party_id,
             provers: self.provers,
-            number_of_witnesses: self.number_of_witnesses,
+            sorted_provers: self.sorted_provers,
+            batch_size: self.batch_size,
             dealer_awaiting_poly_commitments,
             parties_awaiting_poly_challenge,
             individual_commitments,

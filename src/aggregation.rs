@@ -1,5 +1,6 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
+
 //! Proof Aggregation Traits.
 //!
 //! Each state of the MPC protocol is represented by a different Rust

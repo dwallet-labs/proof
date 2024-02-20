@@ -1,11 +1,14 @@
+// Author: dWallet Labs, Ltd.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter;
 
 use crate::aggregation::{process_incoming_messages, ProofShareRoundParty};
-use crate::range::bulletproofs::{proof_aggregation_round, RANGE_CLAIM_BITS};
+use crate::range::bulletproofs::proof_aggregation_round;
 use crate::{Error, Result};
-use bulletproofs::range_proof_mpc::messages::{BitChallenge, BitCommitment, ProofShare};
+use bulletproofs::range_proof_mpc::messages::{BitChallenge, ProofShare};
 use bulletproofs::range_proof_mpc::{
     dealer::DealerAwaitingPolyCommitments, messages::PolyCommitment,
     party::PartyAwaitingPolyChallenge,
@@ -19,7 +22,8 @@ use group::{ristretto, PartyID};
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) party_id: PartyID,
     pub(super) provers: HashSet<PartyID>,
-    pub(super) number_of_witnesses: usize,
+    pub(super) sorted_provers: Vec<PartyID>,
+    pub(super) batch_size: usize,
     pub(super) dealer_awaiting_poly_commitments: DealerAwaitingPolyCommitments,
     pub(super) parties_awaiting_poly_challenge: Vec<PartyAwaitingPolyChallenge>,
     pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
@@ -54,8 +58,10 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
             .flat_map(|(_, poly_commitments)| poly_commitments)
             .collect();
 
-        // TODO: checked next power of two?
-        let padded_poly_commitments_length = poly_commitments.len().next_power_of_two();
+        let padded_poly_commitments_length = poly_commitments
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
 
         let mut iter = poly_commitments.into_iter();
         let poly_commitments: Vec<_> = iter::repeat_with(|| {
@@ -90,7 +96,8 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
         let proof_aggregation_round_party = proof_aggregation_round::Party {
             party_id: self.party_id,
             provers: self.provers,
-            number_of_witnesses: self.number_of_witnesses,
+            sorted_provers: self.sorted_provers,
+            batch_size: self.batch_size,
             dealer_awaiting_proof_shares,
             individual_commitments: self.individual_commitments,
             bit_challenge: self.bit_challenge,

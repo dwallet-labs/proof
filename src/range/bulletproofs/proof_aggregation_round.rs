@@ -1,3 +1,6 @@
+// Author: dWallet Labs, Ltd.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter;
@@ -5,13 +8,9 @@ use std::ops::Neg;
 
 use super::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
 use bulletproofs::exp_iter;
-use bulletproofs::range_proof_mpc::messages::{
-    BitChallenge, BitCommitment, PolyCommitment, ProofShare,
-};
+use bulletproofs::range_proof_mpc::messages::{BitChallenge, ProofShare};
 use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
 use crypto_bigint::rand_core::CryptoRngCore;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::scalar;
 use curve25519_dalek::scalar::Scalar;
 use group::{ristretto, PartyID};
 
@@ -23,7 +22,8 @@ use crate::{aggregation, Error, Result};
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) party_id: PartyID,
     pub(super) provers: HashSet<PartyID>,
-    pub(super) number_of_witnesses: usize,
+    pub(super) sorted_provers: Vec<PartyID>,
+    pub(super) batch_size: usize,
     pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
     pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
     pub(super) bit_challenge: BitChallenge,
@@ -67,8 +67,10 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             .flat_map(|(_, proof_shares)| proof_shares)
             .collect();
 
-        // TODO: checked next power of two?
-        let padded_proof_shares_length = proof_shares.len().next_power_of_two();
+        let padded_proof_shares_length = proof_shares
+            .len()
+            .checked_next_power_of_two()
+            .ok_or(Error::InvalidParameters)?;
 
         let l_vec: Vec<_> = iter::repeat(self.bit_challenge.z.neg())
             .take(RANGE_CLAIM_BITS)
@@ -122,46 +124,64 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         .take(padded_proof_shares_length)
         .collect();
 
-        // TODO: should we abort identifiably in the case of decompression error?
         let bulletproofs_commitments: Vec<_> = self
             .dealer_awaiting_proof_shares
             .bit_commitments
             .iter()
-            .map(|vc| vc.V_j.try_into().map_err(|_| Error::InternalError))
+            .enumerate()
+            .map(|(i, vc)| (i, vc.V_j.try_into()))
+            .collect();
+
+        let parties_sending_invalid_bit_commitments = bulletproofs_commitments
+            .iter()
+            .filter(|(_, commitment)| commitment.is_err())
+            .map(|(i, _)| {
+                self.sorted_provers
+                    .get(*i)
+                    .copied()
+                    .ok_or(Error::InternalError)
+            })
             .collect::<Result<Vec<_>>>()?;
+
+        if !parties_sending_invalid_bit_commitments.is_empty() {
+            return Err(aggregation::Error::InvalidProofShare(
+                parties_sending_invalid_bit_commitments,
+            ))?;
+        }
+
+        let bulletproofs_commitments: Vec<_> = bulletproofs_commitments
+            .into_iter()
+            .map(|(_, commitment)| commitment.unwrap())
+            .collect();
 
         let proof = self
             .dealer_awaiting_proof_shares
             .receive_shares_with_rng(&proof_shares, rng)
             .map_err(|e| match e {
-                MPCError::MalformedProofShares { bad_shares } => {
-                    // TODO: verify this
-                    bad_shares
-                        .into_iter()
-                        .map(|i| {
-                            self.number_of_witnesses
-                                .checked_mul(NUM_RANGE_CLAIMS)
-                                .and_then(|number_of_bulletproof_parties_per_party| {
-                                    i.checked_div(number_of_bulletproof_parties_per_party)
-                                        .and_then(|i| i.checked_add(1))
-                                        .and_then(|i| u16::try_from(i).ok())
-                                })
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .map(|malicious_parties| {
-                            Error::Aggregation(aggregation::Error::ProofShareVerification(
-                                malicious_parties,
-                            ))
-                        })
-                        .unwrap_or(Error::InternalError)
-                }
+                MPCError::MalformedProofShares { bad_shares } => bad_shares
+                    .into_iter()
+                    .map(|i| {
+                        self.batch_size.checked_mul(NUM_RANGE_CLAIMS).and_then(
+                            |number_of_bulletproof_parties_per_party| {
+                                i.checked_div(number_of_bulletproof_parties_per_party)
+                                    .and_then(|i| self.sorted_provers.get(i).copied())
+                            },
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .map(|malicious_parties| {
+                        Error::Aggregation(aggregation::Error::ProofShareVerification(
+                            malicious_parties,
+                        ))
+                    })
+                    .unwrap_or(Error::InternalError),
                 _ => Error::InvalidParameters,
             })?;
 
         super::RangeProof::new_aggregated(
             proof,
             self.provers.len(),
-            self.number_of_witnesses,
+            self.batch_size,
             bulletproofs_commitments.clone(),
         )
     }
