@@ -386,5 +386,3 @@ pub type CommitmentSchemeCommitmentSpaceValue<
         NUM_RANGE_CLAIMS,
     >,
 >;
-
-// TODO: tests
