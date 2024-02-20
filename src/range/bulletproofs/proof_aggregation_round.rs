@@ -1,22 +1,31 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter;
-use std::ops::Neg;
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+    ops::Neg,
+};
 
-use super::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
-use bulletproofs::exp_iter;
-use bulletproofs::range_proof_mpc::messages::{BitChallenge, ProofShare};
-use bulletproofs::range_proof_mpc::{dealer::DealerAwaitingProofShares, MPCError};
+use bulletproofs::{
+    exp_iter,
+    range_proof_mpc::{
+        dealer::DealerAwaitingProofShares,
+        messages::{BitChallenge, ProofShare},
+        MPCError,
+    },
+};
 use crypto_bigint::rand_core::CryptoRngCore;
 use curve25519_dalek::scalar::Scalar;
 use group::{ristretto, PartyID};
 
-use crate::aggregation::{process_incoming_messages, ProofAggregationRoundParty};
-use crate::range::CommitmentScheme;
-use crate::{aggregation, Error, Result};
+use super::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
+use crate::{
+    aggregation,
+    aggregation::{process_incoming_messages, ProofAggregationRoundParty},
+    range::CommitmentScheme,
+    Error, Result,
+};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
@@ -92,7 +101,8 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             if let Some(proof_share) = iter.next() {
                 proof_share
             } else {
-                // $$ \vec{r}_j = ((z-1) y^{n\cdot j+0}+z^{2+j}2^0,\ldots,(z-1) y^{n\cdot j+n-1}+z^{2+j}2^{n-1}) $$
+                // $$ \vec{r}_j = ((z-1) y^{n\cdot j+0}+z^{2+j}2^0,\ldots,(z-1) y^{n\cdot
+                // j+n-1}+z^{2+j}2^{n-1}) $$
                 let r_vec: Vec<_> = (0..RANGE_CLAIM_BITS)
                     .map(|i| {
                         ((self.bit_challenge.z - Scalar::from(1u64))

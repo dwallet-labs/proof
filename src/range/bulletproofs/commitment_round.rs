@@ -1,12 +1,7 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
-use std::collections::HashSet;
-use std::iter;
+use std::{collections::HashSet, iter};
 
-use super::{decommitment_round, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
-use crate::aggregation::CommitmentRoundParty;
-use crate::range::CommitmentScheme;
-use crate::{aggregation, Error, Result};
 use bulletproofs::{
     range_proof_mpc::{dealer::Dealer, messages::BitCommitment, party},
     BulletproofGens, PedersenGens,
@@ -14,6 +9,11 @@ use bulletproofs::{
 use crypto_bigint::{rand_core::CryptoRngCore, U256, U64};
 use group::PartyID;
 use merlin::Transcript;
+
+use super::{decommitment_round, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS};
+use crate::{
+    aggregation, aggregation::CommitmentRoundParty, range::CommitmentScheme, Error, Result,
+};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {

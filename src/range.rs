@@ -3,15 +3,18 @@
 
 pub mod bulletproofs;
 
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
-use crate::aggregation;
 use commitment::{GroupsPublicParametersAccessors, HomomorphicCommitmentScheme};
 use crypto_bigint::rand_core::CryptoRngCore;
 use group::{self_product, NumbersGroupElement, PartyID};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+
+use crate::aggregation;
 
 /// A range proof over `Self::CommitmentScheme`, capable of proving `Self::RANGE_CLAIM_BITS` bits.
 pub trait RangeProof<
@@ -67,7 +70,8 @@ pub trait RangeProof<
     ) -> crate::Result<()>;
 }
 
-/// An aggregatable range proof over `Self::CommitmentScheme`, capable of proving an aggregated range proof over `Self::RANGE_CLAIM_BITS` bits.
+/// An aggregatable range proof over `Self::CommitmentScheme`, capable of proving an aggregated
+/// range proof over `Self::RANGE_CLAIM_BITS` bits.
 pub trait AggregatableRangeProof<
     // The commitment scheme's message space scalar size in limbs
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,

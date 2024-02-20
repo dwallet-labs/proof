@@ -3,24 +3,30 @@
 
 #![allow(non_snake_case)]
 
-use bulletproofs::BulletproofGens;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter;
-use std::ops::Neg;
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+    ops::Neg,
+};
 
-use crate::aggregation::{process_incoming_messages, DecommitmentRoundParty};
-use crate::range::bulletproofs::{proof_share_round, RANGE_CLAIM_BITS};
-use crate::{aggregation, Error, Result};
-use bulletproofs::range_proof_mpc::messages::BitCommitment;
-use bulletproofs::range_proof_mpc::{
-    dealer::DealerAwaitingBitCommitments, messages::PolyCommitment,
-    party::PartyAwaitingBitChallenge,
+use bulletproofs::{
+    range_proof_mpc::{
+        dealer::DealerAwaitingBitCommitments,
+        messages::{BitCommitment, PolyCommitment},
+        party::PartyAwaitingBitChallenge,
+    },
+    BulletproofGens,
 };
 use crypto_bigint::rand_core::CryptoRngCore;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::traits::Identity;
+use curve25519_dalek::{ristretto::RistrettoPoint, traits::Identity};
 use group::PartyID;
+
+use crate::{
+    aggregation,
+    aggregation::{process_incoming_messages, DecommitmentRoundParty},
+    range::bulletproofs::{proof_share_round, RANGE_CLAIM_BITS},
+    Error, Result,
+};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {

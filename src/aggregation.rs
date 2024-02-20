@@ -10,8 +10,10 @@
 
 #![allow(clippy::type_complexity)]
 
-use std::collections::HashSet;
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use crypto_bigint::rand_core::CryptoRngCore;
 use group::PartyID;
@@ -452,7 +454,8 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message.
+                    // No reason that a party would proceed to the next round if it didn't send any
+                    // message.
                     true
                 } else {
                     let res = party.decommit_statements_and_statement_mask(
@@ -480,7 +483,8 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message.
+                    // No reason that a party would proceed to the next round if it didn't send any
+                    // message.
                     true
                 } else {
                     let res =
@@ -505,7 +509,8 @@ pub mod test_helpers {
             .into_iter()
             .all(|(party_id, party)| {
                 if unresponsive_parties.contains(&party_id) {
-                    // No reason that a party would proceed to the next round if it didn't send any message.
+                    // No reason that a party would proceed to the next round if it didn't send any
+                    // message.
                     true
                 } else {
                     let res =

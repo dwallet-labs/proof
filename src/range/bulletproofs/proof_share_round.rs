@@ -1,22 +1,25 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter;
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+};
 
-use crate::aggregation::{process_incoming_messages, ProofShareRoundParty};
-use crate::range::bulletproofs::proof_aggregation_round;
-use crate::{Error, Result};
-use bulletproofs::range_proof_mpc::messages::{BitChallenge, ProofShare};
 use bulletproofs::range_proof_mpc::{
-    dealer::DealerAwaitingPolyCommitments, messages::PolyCommitment,
+    dealer::DealerAwaitingPolyCommitments,
+    messages::{BitChallenge, PolyCommitment, ProofShare},
     party::PartyAwaitingPolyChallenge,
 };
 use crypto_bigint::rand_core::CryptoRngCore;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::traits::Identity;
+use curve25519_dalek::{ristretto::RistrettoPoint, traits::Identity};
 use group::{ristretto, PartyID};
+
+use crate::{
+    aggregation::{process_incoming_messages, ProofShareRoundParty},
+    range::bulletproofs::proof_aggregation_round,
+    Error, Result,
+};
 
 #[cfg_attr(feature = "test_helpers", derive(Clone))]
 pub struct Party<const NUM_RANGE_CLAIMS: usize> {
