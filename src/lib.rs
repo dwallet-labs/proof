@@ -1,7 +1,7 @@
 // Author: dWallet Labs, LTD.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-pub use range::RangeProof;
+pub use range::{AggregatableRangeProof, RangeProof};
 pub use transcript_protocol::TranscriptProtocol;
 mod transcript_protocol;
 
@@ -35,3 +35,14 @@ pub enum Error {
 
 /// Proof result.
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl TryInto<aggregation::Error> for Error {
+    type Error = Self;
+
+    fn try_into(self) -> std::result::Result<aggregation::Error, Self::Error> {
+        match self {
+            Error::Aggregation(e) => Ok(e),
+            e => Err(e),
+        }
+    }
+}
