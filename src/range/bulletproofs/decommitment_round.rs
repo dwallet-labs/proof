@@ -96,6 +96,10 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             .checked_next_power_of_two()
             .ok_or(Error::InvalidParameters)?;
 
+        // To support aggregation of an arbitrary number of parties (not necessarily a power of two),
+        // Pad the provers list with artificial provers that have a witness and nonces of zeros.
+        // Instead of creating the party structs for them and actually running the protocol,
+        // simulate their output messages and pass them to the dealer.
         let mut j = bit_commitments.len();
         let mut iter = bit_commitments.into_iter();
         let bit_commitments = iter::repeat_with(|| {

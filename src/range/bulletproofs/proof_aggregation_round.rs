@@ -85,6 +85,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             .take(RANGE_CLAIM_BITS)
             .collect();
 
+        // Add simulated party's messages.
         let mut j = proof_shares.len();
         let mut iter = proof_shares.into_iter();
         let powers_of_z: Vec<Scalar> = exp_iter(self.bit_challenge.z)

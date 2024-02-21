@@ -66,6 +66,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
             .checked_next_power_of_two()
             .ok_or(Error::InvalidParameters)?;
 
+        // Add simulated party's messages.
         let mut iter = poly_commitments.into_iter();
         let poly_commitments: Vec<_> = iter::repeat_with(|| {
             if let Some(poly_commitment) = iter.next() {
