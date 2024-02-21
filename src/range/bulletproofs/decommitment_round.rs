@@ -102,7 +102,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             if let Some(bit_commitment) = iter.next() {
                 Ok(bit_commitment)
             } else {
-                // $ A_j =  (\pi_{i=0..n-1}{h_{(j-1)*n+i}})^{-1} $
+                // $ A_j =  (\pi_{i=0..n-1}{h_{j*n+i}})^{-1} $
                 let H = self.bulletproofs_generators.share(j).H(RANGE_CLAIM_BITS);
                 j += 1;
                 H.copied()
