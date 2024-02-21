@@ -1,6 +1,8 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
+pub mod bulletproofs;
+
 use std::fmt::Debug;
 
 use commitment::{GroupsPublicParametersAccessors, HomomorphicCommitmentScheme};

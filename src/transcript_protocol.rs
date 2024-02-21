@@ -1,5 +1,6 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
+
 use crypto_bigint::{Encoding, Limb, Uint};
 use merlin::Transcript;
 use serde::Serialize;
