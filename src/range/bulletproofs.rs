@@ -570,12 +570,14 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use bulletproofs::range_proof_mpc::party;
+    use group::ristretto::Scalar;
     use group::{PartyID, Samplable};
     use rand::{prelude::IteratorRandom, Rng};
     use rand_core::OsRng;
     use rstest::rstest;
 
     use super::*;
+    use crate::aggregation::CommitmentRoundParty;
     use crate::{
         aggregation,
         aggregation::{test_helpers, ProofAggregationRoundParty},
@@ -690,6 +692,41 @@ mod tests {
         let commitment_round_parties =
             generate_commitment_round_parties(number_of_parties, threshold, batch_size);
 
+        // first check that we can't assure honest parties witnesses are in range.
+        let out_of_range_party_id = *commitment_round_parties.keys().next().unwrap();
+        let out_of_range_witness: Scalar = (U64::ONE << RANGE_CLAIM_BITS).into();
+        let in_range_witness: Scalar = (U64::ONE << (RANGE_CLAIM_BITS - 1)).into();
+        let mut commitment_round_parties_with_out_of_range_witness =
+            commitment_round_parties.clone();
+
+        let mut out_of_range_party =
+            commitment_round_parties_with_out_of_range_witness[&out_of_range_party_id].clone();
+
+        out_of_range_party.witnesses[0] = [
+            in_range_witness,
+            out_of_range_witness,
+            in_range_witness,
+            in_range_witness,
+        ]
+        .into();
+
+        commitment_round_parties_with_out_of_range_witness
+            .insert(out_of_range_party_id, out_of_range_party);
+
+        commitment_round_parties_with_out_of_range_witness
+            .into_iter()
+            .for_each(|(party_id, party)| {
+                let res = party
+                    .commit_statements_and_statement_mask(&mut OsRng)
+                    .map(|res| (party_id, res));
+                if party_id == out_of_range_party_id {
+                    assert!(matches!(res.err().unwrap(), Error::InvalidParameters));
+                } else {
+                    assert!(res.is_ok());
+                }
+            });
+
+        // now check that malicious parties cannot prove out of range witnesses.
         let provers: Vec<_> = commitment_round_parties.keys().copied().collect();
         let number_of_malicious_parties = if provers.len() == 2 { 1 } else { 2 };
         let mut malicious_parties = provers
@@ -702,10 +739,8 @@ mod tests {
         let (mut commitments, mut decommitment_round_parties) =
             commitment_round(commitment_round_parties).unwrap();
 
-        let bulletproofs_generators = BulletproofGens::new(
-            RANGE_CLAIM_BITS,
-            number_of_parties * NUM_RANGE_CLAIMS * batch_size,
-        );
+        let bulletproofs_generators =
+            BulletproofGens::new(64, number_of_parties * NUM_RANGE_CLAIMS * batch_size);
 
         let commitment_generators = PedersenGens::default();
 
@@ -714,13 +749,13 @@ mod tests {
             let mut malicious_commitments = commitments.get(&party_id).unwrap().clone();
 
             // Just out of range by 1.
-            let out_of_range_witness = (U64::ONE << 32).into();
+            let out_of_range_witness = (U64::ONE << RANGE_CLAIM_BITS).into();
             let malicious_subparty = party::Party::new(
                 bulletproofs_generators.clone(),
                 commitment_generators,
                 out_of_range_witness,
                 curve25519_dalek::scalar::Scalar::zero(),
-                RANGE_CLAIM_BITS,
+                64,
             )
             .unwrap();
 
@@ -760,7 +795,5 @@ mod tests {
                     )
                 }
             }));
-
-        // Try to generate a 64-bit bp and check it doesn't pass
     }
 }
