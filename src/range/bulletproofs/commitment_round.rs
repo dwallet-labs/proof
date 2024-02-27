@@ -81,6 +81,13 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             return Err(Error::InvalidParameters)?;
         }
 
+        let commitments_randomness: Vec<_> = self
+            .commitments_randomness
+            .into_iter()
+            .flat_map(<[_; NUM_RANGE_CLAIMS]>::from)
+            .map(curve25519_dalek::scalar::Scalar::from)
+            .collect();
+
         let number_of_padded_witnesses = witnesses
             .len()
             .checked_next_power_of_two()
@@ -93,6 +100,14 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         })
         .take(number_of_padded_witnesses)
         .collect();
+
+        let mut iter = commitments_randomness.into_iter();
+        let commitments_randomness: Vec<_> = iter::repeat_with(|| {
+            iter.next()
+                .unwrap_or(curve25519_dalek::scalar::Scalar::zero())
+        })
+        .take(number_of_padded_witnesses)
+        .collect();
         let number_of_witnesses = witnesses.len();
 
         let number_of_parties = self
@@ -102,13 +117,6 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             .ok_or(Error::InvalidParameters)?
             .checked_mul(number_of_witnesses)
             .ok_or(Error::InternalError)?;
-
-        let commitments_randomness: Vec<_> = self
-            .commitments_randomness
-            .into_iter()
-            .flat_map(<[_; NUM_RANGE_CLAIMS]>::from)
-            .map(curve25519_dalek::scalar::Scalar::from)
-            .collect();
 
         let bulletproofs_generators = BulletproofGens::new(RANGE_CLAIM_BITS, number_of_parties);
 
