@@ -33,6 +33,8 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) provers: HashSet<PartyID>,
     pub(super) sorted_provers: Vec<PartyID>,
     pub(super) batch_size: usize,
+    pub(super) number_of_bulletproof_parties: usize,
+    pub(super) number_of_padded_witnesses: usize,
     pub(super) dealer_awaiting_proof_shares: DealerAwaitingProofShares,
     pub(super) individual_commitments: HashMap<PartyID, Vec<ristretto::GroupElement>>,
     pub(super) bit_challenge: BitChallenge,
@@ -67,6 +69,19 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         let proof_shares =
             process_incoming_messages(self.party_id, self.provers.clone(), proof_shares, false)?;
 
+        let mut parties_sending_wrong_number_of_proof_shares: Vec<PartyID> = proof_shares
+            .iter()
+            .filter(|(_, proof_shares)| proof_shares.len() != self.number_of_padded_witnesses)
+            .map(|(party_id, _)| *party_id)
+            .collect();
+        parties_sending_wrong_number_of_proof_shares.sort();
+
+        if !parties_sending_wrong_number_of_proof_shares.is_empty() {
+            return Err(aggregation::Error::InvalidProofShare(
+                parties_sending_wrong_number_of_proof_shares,
+            ))?;
+        }
+
         let mut proof_shares: Vec<(_, _)> = proof_shares.into_iter().collect();
 
         proof_shares.sort_by_key(|(party_id, _)| *party_id);
@@ -76,11 +91,6 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             .flat_map(|(_, proof_shares)| proof_shares)
             .collect();
 
-        let padded_proof_shares_length = proof_shares
-            .len()
-            .checked_next_power_of_two()
-            .ok_or(Error::InvalidParameters)?;
-
         let l_vec: Vec<_> = iter::repeat(self.bit_challenge.z.neg())
             .take(RANGE_CLAIM_BITS)
             .collect();
@@ -89,10 +99,10 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         let mut j = proof_shares.len();
         let mut iter = proof_shares.into_iter();
         let powers_of_z: Vec<Scalar> = exp_iter(self.bit_challenge.z)
-            .take(padded_proof_shares_length + 2)
+            .take(self.number_of_bulletproof_parties + 2)
             .collect();
         let powers_of_y: Vec<Scalar> = exp_iter(self.bit_challenge.y)
-            .take(padded_proof_shares_length * RANGE_CLAIM_BITS)
+            .take(self.number_of_bulletproof_parties * RANGE_CLAIM_BITS)
             .collect();
         let powers_of_2: Vec<Scalar> = exp_iter(Scalar::from(2u64))
             .take(RANGE_CLAIM_BITS)
@@ -132,7 +142,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                 proof_share
             }
         })
-        .take(padded_proof_shares_length)
+        .take(self.number_of_bulletproof_parties)
         .collect();
 
         let bulletproofs_commitments: Vec<_> = self
@@ -147,9 +157,8 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             .iter()
             .filter(|(_, commitment)| commitment.is_err())
             .map(|(i, _)| {
-                self.sorted_provers
-                    .get(*i)
-                    .copied()
+                i.checked_div(self.number_of_padded_witnesses)
+                    .and_then(|i| self.sorted_provers.get(i).copied())
                     .ok_or(Error::InternalError)
             })
             .collect::<Result<Vec<_>>>()?;
@@ -172,12 +181,8 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                 MPCError::MalformedProofShares { bad_shares } => bad_shares
                     .into_iter()
                     .map(|i| {
-                        self.batch_size.checked_mul(NUM_RANGE_CLAIMS).and_then(
-                            |number_of_bulletproof_parties_per_party| {
-                                i.checked_div(number_of_bulletproof_parties_per_party)
-                                    .and_then(|i| self.sorted_provers.get(i).copied())
-                            },
-                        )
+                        i.checked_div(self.number_of_padded_witnesses)
+                            .and_then(|i| self.sorted_provers.get(i).copied())
                     })
                     .collect::<Option<Vec<_>>>()
                     .map(|malicious_parties| {
@@ -189,11 +194,6 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                 _ => Error::InvalidParameters,
             })?;
 
-        super::RangeProof::new_aggregated(
-            proof,
-            self.provers.len(),
-            self.batch_size,
-            bulletproofs_commitments.clone(),
-        )
+        super::RangeProof::new_aggregated(proof, self.batch_size, bulletproofs_commitments.clone())
     }
 }

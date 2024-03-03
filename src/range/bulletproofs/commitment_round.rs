@@ -60,6 +60,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             ));
         }
 
+        // Number of unflattened commitments per party.
         let batch_size = self.witnesses.len();
 
         // As bulletproofs proves a single witness, flatten the witnesses vector
@@ -88,6 +89,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             .map(curve25519_dalek::scalar::Scalar::from)
             .collect();
 
+        // $$ \hat{s} $$
         let number_of_padded_witnesses = witnesses
             .len()
             .checked_next_power_of_two()
@@ -108,17 +110,18 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
         })
         .take(number_of_padded_witnesses)
         .collect();
-        let number_of_witnesses = witnesses.len();
 
-        let number_of_parties = self
+        // $$ \hat{t} * \hat{s} $$
+        let number_of_bulletproof_parties = self
             .provers
             .len()
             .checked_next_power_of_two()
             .ok_or(Error::InvalidParameters)?
-            .checked_mul(number_of_witnesses)
+            .checked_mul(number_of_padded_witnesses)
             .ok_or(Error::InternalError)?;
 
-        let bulletproofs_generators = BulletproofGens::new(RANGE_CLAIM_BITS, number_of_parties);
+        let bulletproofs_generators =
+            BulletproofGens::new(RANGE_CLAIM_BITS, number_of_bulletproof_parties);
 
         let commitment_generators = PedersenGens::default();
 
@@ -127,7 +130,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             commitment_generators,
             self.initial_transcript,
             RANGE_CLAIM_BITS,
-            number_of_parties,
+            number_of_bulletproof_parties,
         )
         .map_err(|_| Error::InvalidParameters)?;
 
@@ -156,8 +159,7 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
                 sorted_provers
                     .iter()
                     .position(|x| x == &self.party_id)
-                    .and_then(|position| position.checked_mul(NUM_RANGE_CLAIMS))
-                    .and_then(|position| position.checked_mul(batch_size))
+                    .and_then(|position| position.checked_mul(number_of_padded_witnesses))
                     .and_then(|position| position.checked_add(i))
                     .ok_or(Error::InternalError)
                     .and_then(|position| {
@@ -175,7 +177,8 @@ impl<const NUM_RANGE_CLAIMS: usize> CommitmentRoundParty<super::Output<NUM_RANGE
             provers: self.provers,
             sorted_provers,
             batch_size,
-            number_of_witnesses,
+            number_of_padded_witnesses,
+            number_of_bulletproof_parties,
             dealer_awaiting_bit_commitments,
             parties_awaiting_bit_challenge,
             bulletproofs_generators,

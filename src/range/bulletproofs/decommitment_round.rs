@@ -34,7 +34,8 @@ pub struct Party<const NUM_RANGE_CLAIMS: usize> {
     pub(super) provers: HashSet<PartyID>,
     pub(super) sorted_provers: Vec<PartyID>,
     pub(super) batch_size: usize,
-    pub(super) number_of_witnesses: usize,
+    pub(super) number_of_bulletproof_parties: usize,
+    pub(super) number_of_padded_witnesses: usize,
     pub(super) dealer_awaiting_bit_commitments: DealerAwaitingBitCommitments,
     pub(super) parties_awaiting_bit_challenge: Vec<PartyAwaitingBitChallenge>,
     pub(super) bulletproofs_generators: BulletproofGens,
@@ -60,13 +61,13 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
 
         let mut parties_sending_wrong_number_of_bitcommitments: Vec<PartyID> = commitments
             .iter()
-            .filter(|(_, bitcommitments)| bitcommitments.len() != self.number_of_witnesses)
+            .filter(|(_, bitcommitments)| bitcommitments.len() != self.number_of_padded_witnesses)
             .map(|(party_id, _)| *party_id)
             .collect();
         parties_sending_wrong_number_of_bitcommitments.sort();
 
         if !parties_sending_wrong_number_of_bitcommitments.is_empty() {
-            return Err(aggregation::Error::WrongNumberOfDecommittedStatements(
+            return Err(aggregation::Error::InvalidCommitment(
                 parties_sending_wrong_number_of_bitcommitments,
             ))?;
         }
@@ -90,11 +91,6 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             .into_iter()
             .flat_map(|(_, bit_commitments)| bit_commitments)
             .collect();
-
-        let padded_bit_commitments_length = bit_commitments
-            .len()
-            .checked_next_power_of_two()
-            .ok_or(Error::InvalidParameters)?;
 
         // To support aggregation of an arbitrary number of parties (not necessarily a power of two),
         // Pad the provers list with artificial provers that have a witness and nonces of zeros.
@@ -120,7 +116,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
                     .ok_or(Error::InternalError)
             }
         })
-        .take(padded_bit_commitments_length)
+        .take(self.number_of_bulletproof_parties)
         .collect::<Result<Vec<_>>>()?;
 
         let (dealer_awaiting_poly_commitments, bit_challenge) = self
@@ -139,6 +135,8 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
             provers: self.provers,
             sorted_provers: self.sorted_provers,
             batch_size: self.batch_size,
+            number_of_bulletproof_parties: self.number_of_bulletproof_parties,
+            number_of_padded_witnesses: self.number_of_padded_witnesses,
             dealer_awaiting_poly_commitments,
             parties_awaiting_poly_challenge,
             individual_commitments,
