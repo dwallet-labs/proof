@@ -55,7 +55,6 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
         let decommitments =
             process_incoming_messages(self.party_id, self.provers.clone(), decommitments, false)?;
 
-        // TODO: here and elsewhere, the blamed party id is broken -> convert to maurer party id.
         let mut parties_sending_wrong_number_of_poly_commitments: Vec<PartyID> = decommitments
             .iter()
             .filter(|(_, poly_commitments)| {
@@ -66,8 +65,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofShareRoundParty<super::Output<NUM_RANGE
         parties_sending_wrong_number_of_poly_commitments.sort();
 
         if !parties_sending_wrong_number_of_poly_commitments.is_empty() {
-            // TODO: different error?
-            return Err(aggregation::Error::WrongNumberOfDecommittedStatements(
+            return Err(aggregation::Error::InvalidDecommitment(
                 parties_sending_wrong_number_of_poly_commitments,
             ))?;
         }

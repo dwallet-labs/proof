@@ -30,6 +30,9 @@ pub enum Error {
     #[error("parties {:?} participated in the previous round of the session but not in the current", .0)]
     UnresponsiveParties(Vec<PartyID>),
 
+    #[error("parties {:?} sent an invalid commitment", .0)]
+    InvalidCommitment(Vec<PartyID>),
+
     #[error("parties {:?} sent an invalid decommitment value", .0)]
     InvalidDecommitment(Vec<PartyID>),
 

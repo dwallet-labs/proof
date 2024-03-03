@@ -59,7 +59,6 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         let commitments =
             process_incoming_messages(self.party_id, self.provers.clone(), commitments, false)?;
 
-        // TODO: here and elsewhere, the blamed party id is broken -> convert to maurer party id.
         let mut parties_sending_wrong_number_of_bitcommitments: Vec<PartyID> = commitments
             .iter()
             .filter(|(_, bitcommitments)| bitcommitments.len() != self.number_of_padded_witnesses)
@@ -68,7 +67,7 @@ impl<const NUM_RANGE_CLAIMS: usize> DecommitmentRoundParty<super::Output<NUM_RAN
         parties_sending_wrong_number_of_bitcommitments.sort();
 
         if !parties_sending_wrong_number_of_bitcommitments.is_empty() {
-            return Err(aggregation::Error::WrongNumberOfDecommittedStatements(
+            return Err(aggregation::Error::InvalidCommitment(
                 parties_sending_wrong_number_of_bitcommitments,
             ))?;
         }

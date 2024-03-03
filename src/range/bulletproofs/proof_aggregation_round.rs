@@ -69,7 +69,6 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         let proof_shares =
             process_incoming_messages(self.party_id, self.provers.clone(), proof_shares, false)?;
 
-        // TODO: here and elsewhere, the blamed party id is broken -> convert to maurer party id.
         let mut parties_sending_wrong_number_of_proof_shares: Vec<PartyID> = proof_shares
             .iter()
             .filter(|(_, proof_shares)| proof_shares.len() != self.number_of_padded_witnesses)
@@ -78,8 +77,7 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
         parties_sending_wrong_number_of_proof_shares.sort();
 
         if !parties_sending_wrong_number_of_proof_shares.is_empty() {
-            // TODO: different error?
-            return Err(aggregation::Error::WrongNumberOfDecommittedStatements(
+            return Err(aggregation::Error::InvalidProofShare(
                 parties_sending_wrong_number_of_proof_shares,
             ))?;
         }
@@ -155,14 +153,12 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
             .map(|(i, vc)| (i, vc.V_j.try_into()))
             .collect();
 
-        // TODO: here and elsewhere, the blamed party id is broken -> convert to maurer party id.
         let parties_sending_invalid_bit_commitments = bulletproofs_commitments
             .iter()
             .filter(|(_, commitment)| commitment.is_err())
             .map(|(i, _)| {
-                self.sorted_provers
-                    .get(*i)
-                    .copied()
+                i.checked_div(self.number_of_padded_witnesses)
+                    .and_then(|i| self.sorted_provers.get(i).copied())
                     .ok_or(Error::InternalError)
             })
             .collect::<Result<Vec<_>>>()?;
@@ -185,13 +181,8 @@ impl<const NUM_RANGE_CLAIMS: usize> ProofAggregationRoundParty<Output<NUM_RANGE_
                 MPCError::MalformedProofShares { bad_shares } => bad_shares
                     .into_iter()
                     .map(|i| {
-                        // TODO: this might be broken. Use self.number_of_padded_witnesses?
-                        self.batch_size.checked_mul(NUM_RANGE_CLAIMS).and_then(
-                            |number_of_bulletproof_parties_per_party| {
-                                i.checked_div(number_of_bulletproof_parties_per_party)
-                                    .and_then(|i| self.sorted_provers.get(i).copied())
-                            },
-                        )
+                        i.checked_div(self.number_of_padded_witnesses)
+                            .and_then(|i| self.sorted_provers.get(i).copied())
                     })
                     .collect::<Option<Vec<_>>>()
                     .map(|malicious_parties| {
