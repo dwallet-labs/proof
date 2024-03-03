@@ -554,6 +554,17 @@ impl RangeProof {
     }
 }
 
+// Since exporting rust `#[cfg(test)]` is impossible, these test helpers exist in a dedicated feature-gated
+// module.
+#[cfg(feature = "test_helpers")]
+pub mod test_helpers {
+    use crate::range::bulletproofs::RangeProof;
+
+    pub fn new_range_proof(proof: bulletproofs::RangeProof) -> RangeProof {
+        RangeProof::new(proof)
+    }
+}
+
 #[cfg(all(test, feature = "test_helpers"))]
 mod tests {
     use std::collections::{HashMap, HashSet};
