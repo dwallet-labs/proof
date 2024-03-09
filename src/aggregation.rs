@@ -560,16 +560,37 @@ pub mod test_helpers {
             PartyID,
             Vec<<P::DecommitmentRoundParty as DecommitmentRoundParty<Output>>::Decommitment>,
         >,
+        Duration,
+        Duration,
+        Duration,
+        Duration,
+        Duration,
         Output,
     ) {
-        let (decommitments, .., outputs) = aggregates_multiple_with_decommitments(
+        let (
+            decommitments,
+            commitment_round_time,
+            decommitment_round_time,
+            proof_share_round_time,
+            proof_aggregation_round_time,
+            total_time,
+            outputs,
+        ) = aggregates_multiple_with_decommitments(
             commitment_round_parties
                 .into_iter()
                 .map(|(party_id, party)| (party_id, vec![party]))
                 .collect(),
         );
 
-        (decommitments, outputs.into_iter().next().unwrap())
+        (
+            decommitments,
+            commitment_round_time,
+            decommitment_round_time,
+            proof_share_round_time,
+            proof_aggregation_round_time,
+            total_time,
+            outputs.into_iter().next().unwrap(),
+        )
     }
 
     /// Test aggregation over multiple claims in parallel.
