@@ -552,10 +552,65 @@ pub mod test_helpers {
         )
     }
 
+    /// Test aggregation, returning decommitments as well.
+    pub fn aggregates_with_decommitments<Output, P: CommitmentRoundParty<Output>>(
+        commitment_round_parties: HashMap<PartyID, P>,
+    ) -> (
+        HashMap<
+            PartyID,
+            Vec<<P::DecommitmentRoundParty as DecommitmentRoundParty<Output>>::Decommitment>,
+        >,
+        Output,
+    ) {
+        let (decommitments, .., outputs) = aggregates_multiple_with_decommitments(
+            commitment_round_parties
+                .into_iter()
+                .map(|(party_id, party)| (party_id, vec![party]))
+                .collect(),
+        );
+
+        (decommitments, outputs.into_iter().next().unwrap())
+    }
+
     /// Test aggregation over multiple claims in parallel.
     pub fn aggregates_multiple<Output, P: CommitmentRoundParty<Output>>(
         commitment_round_parties: HashMap<PartyID, Vec<P>>,
     ) -> (
+        Duration,
+        Duration,
+        Duration,
+        Duration,
+        Duration,
+        Vec<Output>,
+    ) {
+        let (
+            _,
+            commitment_round_time,
+            decommitment_round_time,
+            proof_share_round_time,
+            proof_aggregation_round_time,
+            total_time,
+            outputs,
+        ) = aggregates_multiple_with_decommitments(commitment_round_parties);
+
+        (
+            commitment_round_time,
+            decommitment_round_time,
+            proof_share_round_time,
+            proof_aggregation_round_time,
+            total_time,
+            outputs,
+        )
+    }
+
+    /// Test aggregation over multiple claims in parallel, returning decommitments as well.
+    pub fn aggregates_multiple_with_decommitments<Output, P: CommitmentRoundParty<Output>>(
+        commitment_round_parties: HashMap<PartyID, Vec<P>>,
+    ) -> (
+        HashMap<
+            PartyID,
+            Vec<<P::DecommitmentRoundParty as DecommitmentRoundParty<Output>>::Decommitment>,
+        >,
         Duration,
         Duration,
         Duration,
@@ -631,7 +686,7 @@ pub mod test_helpers {
                 })
                 .collect();
 
-        let decommitments: HashMap<_, Vec<_>> = decommitments_and_proof_share_round_parties
+        let decommitments_vecs: HashMap<_, Vec<_>> = decommitments_and_proof_share_round_parties
             .iter()
             .map(|(party_id, v)| {
                 (
@@ -645,7 +700,7 @@ pub mod test_helpers {
 
         let decommitments: Vec<HashMap<_, _>> = (0..batch_size)
             .map(|i| {
-                decommitments
+                decommitments_vecs
                     .iter()
                     .map(|(party_id, decommitments)| (*party_id, decommitments[i].clone()))
                     .collect()
@@ -718,6 +773,7 @@ pub mod test_helpers {
         let total_time = measurement.add(&total_time, &proof_aggregation_round_time);
 
         (
+            decommitments_vecs,
             commitment_round_time,
             decommitment_round_time,
             proof_share_round_time,
